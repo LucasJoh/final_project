@@ -72,6 +72,15 @@ def setup(self):
     self.ignore_others_timer = 0
     self.current_round = 0
 
+     # coordinate setup
+    coords = [[(i,j) for j in range(1, 16)] for i in range(1,16)]
+    self.ld = list(zip(*coords))[::-1]
+    self.rd = list(zip(*self.ld))[::-1]
+    self.ru = list(zip(*self.rd))[::-1]
+
+    self.order_ru = {"LEFT": "DOWN", "RIGHT": "UP", "UP": "LEFT", "DOWN": "RIGHT"}
+    self.order_rd = {"LEFT": "RIGHT", "RIGHT": "LEFT", "UP": "DOWN", "DOWN": "UP"}
+    self.order_ld = {"LEFT": "UP", "UP": "RIGHT", "RIGHT": "DOWN", "DOWN": "LEFT"}
 
 def reset_self(self):
     self.bomb_history = deque([], 5)
@@ -88,6 +97,9 @@ def act(self, game_state):
     which is a dictionary. Consult 'get_state_for_agent' in environment.py to see
     what it contains.
     """
+
+    game_state, state = game_state_transformer(self, game_state)
+
     self.logger.info('Picking action according to rule set')
     # Check if we are in a different round
     if game_state["round"] != self.current_round:
@@ -203,4 +215,81 @@ def act(self, game_state):
             if a == 'BOMB':
                 self.bomb_history.append((x, y))
 
+            if a in ["LEFT", "RIGHT", "UP", "DOWN"]:
+                if state == "ru":
+                    a = self.order_ru[a]
+                if state == "rd":
+                    a = self.order_rd[a]
+                if state == "ld":
+                    a = self.order_ld[a]
+            
+            self.logger.debug(a)
             return a
+
+
+#turn board
+def game_state_transformer(self, game_state):
+    new_game_state = game_state
+    own_pos = game_state['self'][3]
+    state = ""
+
+    for i in range(len(new_game_state['bombs'])):
+        new_game_state['bombs'][i] = list(new_game_state['bombs'][i])
+ 
+    if own_pos[1] > 8:
+
+        if own_pos[0] > 8:
+
+            new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
+            new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
+
+            new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
+            new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
+
+            own_pos = self.rd[own_pos[0] - 1][own_pos[1] - 1]
+
+            for i in range(len(new_game_state['coins'])):
+                new_game_state['coins'][i] = self.rd[new_game_state['coins'][i][0] - 1][new_game_state['coins'][i][1] - 1]
+
+            for i in range(len(new_game_state['bombs'])):
+                new_game_state['bombs'][i][0] = self.rd[new_game_state['bombs'][i][0][0] - 1][new_game_state['bombs'][i][0][1] - 1]
+            state = "rd"
+        else:
+            
+            new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
+
+            new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
+
+            own_pos = self.ld[own_pos[0] - 1][own_pos[1] - 1]
+
+            for i in range(len(new_game_state['coins'])):
+                new_game_state['coins'][i] = self.ld[new_game_state['coins'][i][0] - 1][new_game_state['coins'][i][1] - 1]
+
+            for i in range(len(new_game_state['bombs'])):
+                new_game_state['bombs'][i][0] = self.ld[new_game_state['bombs'][i][0][0] - 1][new_game_state['bombs'][i][0][1] - 1]
+
+            state = "ld"
+    elif own_pos[0] > 8:
+
+            new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
+            new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
+            new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
+
+            new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
+            new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
+            new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
+            
+            own_pos = self.ru[own_pos[0] - 1][own_pos[1] - 1]
+
+            for i in range(len(new_game_state['coins'])):
+                new_game_state['coins'][i] = self.ru[new_game_state['coins'][i][0] - 1][new_game_state['coins'][i][1] - 1]
+
+            for i in range(len(new_game_state['bombs'])):
+                new_game_state['bombs'][i][0] = self.ru[new_game_state['bombs'][i][0][0] - 1][new_game_state['bombs'][i][0][1] - 1]
+
+            state = "ru"
+
+    new_game_state['self'] = list(new_game_state['self'])
+    new_game_state['self'][3] = own_pos
+
+    return new_game_state, state
