@@ -24,8 +24,8 @@ def setup(self):
     """
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
-        weights = np.random.rand(len(ACTIONS))
-        self.model = weights / weights.sum()
+        weights = np.random.rand(10)
+        self.model = weights/np.sum(weights)
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -34,11 +34,16 @@ def setup(self):
 
 #initial guess
 def q_hat(S,A,w):
-    P=S[0]
-    P_vec = np.full_like(S,P)
-    diff = np.linalg.norm(S-P_vec,axis=1)
-
-    return w@(A*diff**(-1))
+    S_temp=S
+    if A=='UP':
+        S_temp[0]+=1
+    if A=='DOWN':
+        S_temp[0]-=1
+    if A=='RIGHT':
+        S_temp[1]+=1
+    if A=='LEFT':
+        S_temp[1]-=1
+    return w@S_temp
 
 
 def act(self, game_state: dict) -> str:
@@ -50,24 +55,20 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
-    #initial guess
-    def q_hat(S,A,w):
-        P=S[0]
-        P_vec = np.full_like(S,P)
-        diff = np.linalg.norm(S-P_vec,axis=1)
-
-        return w@(A*diff)
+    
 
     S= state_to_features(game_state)
-    action = range(len(ACTIONS))
+    action = range(1,len(ACTIONS)+1)
+    """
     if len(self.model)!=len(S):
         
         w=np.concatenate((np.array(self.model),np.full(np.abs(len(S)-len(self.model)),0.0)))
     else:
-        w=self.model
+    """
+    w=self.model
     
     assert len(S)==len(w)
-    greedy_ind = np.argmax(np.array([q_hat(S,a,w) for a in action]))
+    greedy_ind = np.argmax(np.array([q_hat(S,a,w) for a in ACTIONS]))
     greedy=ACTIONS[greedy_ind]
     
           
@@ -109,7 +110,24 @@ def state_to_features(game_state: dict) -> np.array:
     channels = []
     #for collecting coins we consider our own position and the position of coins
     
-    states = np.array([game_state['self'][3]]+game_state['coins'])
+    coins=game_state['coins']
+    player=game_state['self']
+    bombs = [b[0] for b in game_state['bombs']]
+    l=4-len(bombs)
+    for i in range(l): #get full list, with (0,0) as placeholder
+        bombs.append((0,0))
+    if coins== None: #if there are no coins to collect, we don't want to be confused
+        nextcoin=np.array([0,0])
+    else:
+        p = np.full_like(coins,player[3])
+        nextcoin = coins[np.argmin(np.linalg.norm(p-coins,axis=1))]
+    channels.append(player[3])
+    channels.append(nextcoin)
+    for i in range(3):
+        channels.append(bombs[i])
+    
+    
+    
     """
     for i in range(len(states)):
         for k in range(3):
@@ -118,8 +136,8 @@ def state_to_features(game_state: dict) -> np.array:
                     channels.append((states[i]**k)*(states[j]**l))
     """
     # concatenate them as a feature tensor (they must have the same shape), ...
-    #stacked_channels = np.stack(channels)
+    stacked_channels = np.stack(channels)
     # and return them as a vector
-    #return stacked_channels.reshape(-1)
+    return stacked_channels.reshape(-1)
     
-    return states
+    #return states

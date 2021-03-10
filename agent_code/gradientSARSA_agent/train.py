@@ -17,6 +17,8 @@ RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 
 # Events
 PLACEHOLDER_EVENT = "PLACEHOLDER"
+THREATEN_BY_ONE = "THREATEN_BY_ONE"
+GETTING_CLOSER = "GETTING_CLOSER"
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -61,33 +63,55 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     # state_to_features is defined in callbacks.py
     self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
     if old_game_state == None:
-        self.model = np.ones(5)
+        pass
     else:
         S=state_to_features(old_game_state)
         
-        S_prime = new_game_state
-        A=np.where(self_action==ACTIONS)[0]
+        S_prime = state_to_features(new_game_state)
+        #A=np.where(self_action==ACTIONS)[0]
+        A=self_action
         
-        gamma=1
-        alpha=0.1
+        threat=0
+        #new events
+        if (S_prime[0] in range(S_prime[4]-3,S_prime[4]+3)) or (S_prime[1] in range(S_prime[5]-3,S_prime[5]+3)):
+            threat+=1
         
+        if threat==1:
+            events.append(THREATEN_BY_ONE)
+
+        old_p = S[0:2]
+        new_p =S_prime[:2]
+        old_c = S[2:4]
+        new_c = S_prime[2:4]
+        if np.linalg.norm(old_p-old_c)>np.linalg.norm(new_p-new_c):
+            events.append(GETTING_CLOSER)
+
+        gamma=0.9
+        alpha=0.3
+        
+        """
         if (self.model).all() ==None:
             w=np.full(0.0,len(S))
         elif len(self.model)!=len(S):
             
             w=np.concatenate((np.array(self.model),np.full(np.abs(len(S)-len(self.model)),0.0)))
         else:
-            w=self.model
+        """
+        w=self.model
         
-        action=range(len(ACTIONS))
+        action=range(1,len(ACTIONS)+1)
         epsilon=0.05
-        greedy_ind = np.argmax(np.array([q_hat(S,a,w) for a in action]))
-        A_prime=np.random.choice((greedy_ind,np.random.choice(action,1)),1,[1-epsilon,epsilon])
+        greedy_ind = np.argmax(np.array([q_hat(S,a,w) for a in ACTIONS]))
         greedy=ACTIONS[greedy_ind]
-        y=np.full_like(w,q_hat(S,A,w))
-        grad = np.concatenate((np.diff(y)/np.diff(w),np.array([-1])))
+        A_prime=np.random.choice((greedy,np.random.choice(ACTIONS,1)),1,[1-epsilon,epsilon])
+        
+        grad=np.zeros_like(w)
+        for i in range(len(w)):#use that q is just linear wrt w
+            w_temp=w 
+            w_temp[i]=1
+            grad[i]= q_hat(S,A,w_temp)
         #use gradient SARSA (p.244)
-        w=w+alpha*(reward_from_events(self,events)-gamma*q_hat(state_to_features(S_prime),A_prime,w)-q_hat(S,A,w))*grad
+        w=w+alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad
 
         self.model=w
 
@@ -109,25 +133,32 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     S=state_to_features(last_game_state)
         
         
-    A=np.where(last_action==ACTIONS)[0]
+    #A=np.where(last_action==ACTIONS)[0]+1
+    A=last_action
         
-    gamma=1
-    alpha=0.1
-        
+    gamma=0.9
+    alpha=0.3
+
+    """    
     if (self.model).all() ==None:
         w=np.full(0.0,len(S))
     elif len(self.model)!=len(S):
             
         w=np.concatenate((np.array(self.model),np.full(np.abs(len(S)-len(self.model)),0.0)))
     else:
-        w=self.model
+    """
+    w=self.model
         
-    action=range(len(ACTIONS))
+    action=range(1,len(ACTIONS)+1)
     epsilon=0.05
-    greedy_ind = np.argmax(np.array([q_hat(S,a,w) for a in action]))
-    y=np.full_like(w,q_hat(S,A,w))
-    grad = np.concatenate((np.diff(y)/np.diff(w),np.array([0])))
-        #use gradient SARSA (p.244)
+    greedy_ind = np.argmax(np.array([q_hat(S,a,w) for a in ACTIONS]))
+    
+    grad=np.zeros_like(w)
+    for i in range(len(w)):#use that q is just linear wrt w
+        w_temp=w 
+        w_temp[i]=1
+        grad[i]= q_hat(S,A,w_temp)
+
     w=w+alpha*(reward_from_events(self,events)-gamma*q_hat(S,A,w)-q_hat(S,A,w))*grad
 
     self.model=w
@@ -145,14 +176,18 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 1,
+        e.COIN_COLLECTED: 100,
         #e.KILLED_OPPONENT: 5,
         e.MOVED_DOWN: -.1,
         e.MOVED_LEFT: -.1,
         e.MOVED_RIGHT: -.1,
         e.MOVED_UP: -.1,
         e.WAITED: -.1,
-        e.INVALID_ACTION: -.1,
+        e.INVALID_ACTION: -1,
+        e.KILLED_SELF: -10,
+        e.GOT_KILLED: -5,
+        THREATEN_BY_ONE: -0.1,
+        GETTING_CLOSER: 5,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
     reward_sum = 0
