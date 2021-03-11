@@ -36,6 +36,14 @@ def setup_training(self):
     self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
     
 
+def grad_q_hat(S,A,w):
+    grad=np.zeros_like(w)
+    for i in range(len(w)):#use that q is just linear wrt w
+        w_temp=np.zeros_like(w)
+        w_temp[i]=1
+        grad[i]= q_hat(S,A,w_temp)
+    return grad
+
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -105,13 +113,21 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         greedy=ACTIONS[greedy_ind]
         A_prime=np.random.choice((greedy,np.random.choice(ACTIONS,1)),1,[1-epsilon,epsilon])
         
-        grad=np.zeros_like(w)
-        for i in range(len(w)):#use that q is just linear wrt w
-            w_temp=w 
-            w_temp[i]=1
-            grad[i]= q_hat(S,A,w_temp)
+        
         #use gradient SARSA (p.244)
-        w=w+alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad
+        #print(f"Grad: {grad_q_hat(S,A,w)}")
+        #print(q_hat(S_prime,A_prime,w))
+        #print(q_hat(S,A,w))
+        #print(reward_from_events(self,events))
+        #print(gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))
+        #print(alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w)))
+        #print(alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad_q_hat(S,A,w))
+
+
+        #print(w)
+        #gradient method
+        w=w+alpha*(reward_from_events(self,events)+gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad_q_hat(S,A,w)
+        
 
         self.model=w
 
@@ -153,13 +169,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     epsilon=0.05
     greedy_ind = np.argmax(np.array([q_hat(S,a,w) for a in ACTIONS]))
     
-    grad=np.zeros_like(w)
-    for i in range(len(w)):#use that q is just linear wrt w
-        w_temp=w 
-        w_temp[i]=1
-        grad[i]= q_hat(S,A,w_temp)
+    
 
-    w=w+alpha*(reward_from_events(self,events)-gamma*q_hat(S,A,w)-q_hat(S,A,w))*grad
+    w=w+alpha*(reward_from_events(self,events)-gamma*q_hat(S,A,w)-q_hat(S,A,w))*grad_q_hat(S,A,w)
 
     self.model=w
 

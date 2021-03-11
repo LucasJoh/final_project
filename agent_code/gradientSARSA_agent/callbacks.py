@@ -25,7 +25,7 @@ def setup(self):
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
-        self.model = weights/np.sum(weights)
+        self.model = np.full(10,0.1)
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -34,15 +34,18 @@ def setup(self):
 
 #initial guess
 def q_hat(S,A,w):
-    S_temp=S
+    #print(w)
+    S_temp=S.copy()
     if A=='UP':
-        S_temp[0]+=1
-    if A=='DOWN':
-        S_temp[0]-=1
-    if A=='RIGHT':
-        S_temp[1]+=1
-    if A=='LEFT':
         S_temp[1]-=1
+    if A=='DOWN':
+        S_temp[1]+=1
+    if A=='RIGHT':
+        S_temp[0]+=1
+    if A=='LEFT':
+        S_temp[0]-=1
+
+    #print(S_temp,S)
     return w@S_temp
 
 
