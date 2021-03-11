@@ -19,6 +19,10 @@ RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 PLACEHOLDER_EVENT = "PLACEHOLDER"
 THREATEN_BY_ONE = "THREATEN_BY_ONE"
 GETTING_CLOSER = "GETTING_CLOSER"
+NEXT_TO_COIN = "NEXT_TO_COIN"
+LOOSING_COIN = "LOOSING_COIN"
+GOOD_STEP = "GOOD_STEP"
+SAFE_BOMB = "SAFE_BOMB"
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -73,29 +77,78 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     if old_game_state == None:
         pass
     else:
-        S=state_to_features(old_game_state)
-        
-        S_prime = state_to_features(new_game_state)
+        #S=state_to_features(old_game_state)
+        S=old_game_state
+        #S_prime = state_to_features(new_game_state)
+        S_prime = new_game_state
         #A=np.where(self_action==ACTIONS)[0]
         A=self_action
+        old_features = state_to_features(S)
+        new_features = state_to_features(S_prime)
         
-        threat=0
+        #threat=0
         #new events
-        if (S_prime[0] in range(S_prime[4]-3,S_prime[4]+3)) or (S_prime[1] in range(S_prime[5]-3,S_prime[5]+3)):
-            threat+=1
-        
-        if threat==1:
-            events.append(THREATEN_BY_ONE)
+        #print(S_prime[0:2],S_prime[20:28])
+        """
+        for i in range(10,14):
+            
+            if S_prime[i*2]!=0: #don't get threaten by nonexisting bombs
+                
+                if (S_prime[0] in range(S_prime[i*2]-3,S_prime[i*2]+3)) or (S_prime[1] in range(S_prime[(i*2)+1]-3,S_prime[(i*2)+1]+3)):
+                    events.append(THREATEN_BY_ONE)
+        """
+        for i in range(new_features[7]):
+            events.append(SAFE_BOMB)
+        #if threat==1:
+        #    events.append(THREATEN_BY_ONE)
 
+        #like a multiplier for getting closer to coins
+        """
         old_p = S[0:2]
         new_p =S_prime[:2]
-        old_c = S[2:4]
-        new_c = S_prime[2:4]
-        if np.linalg.norm(old_p-old_c)>np.linalg.norm(new_p-new_c):
+        old_cs = S[2:20]
+        new_cs = S_prime[2:20]
+        """
+        """
+        for i in range(9):
+            old_c = old_cs[i*2:(i*2)+2]
+            new_c = new_cs[i*2:(i*2)+2]
+            if old_c[0]!=0 or new_c[0]!=0: #if coins appear or disappear its useless to talk about distance
+                if np.linalg.norm(old_p-old_c)>np.linalg.norm(new_p-new_c):
+                    events.append(GETTING_CLOSER)
+        """
+        """
+        ind=1
+        old_c = old_cs[ind*2:(ind*2)+2]
+        new_c = new_cs[ind*2:(ind*2)+2]
+        if old_c[0]!=0 or new_c[0]!=0: #if coins appear or disappear its useless to talk about distance
+            if np.linalg.norm(old_p-old_c)>np.linalg.norm(new_p-new_c):
+                events.append(GETTING_CLOSER)
+        """
+        if new_features[1]>old_features[1]:
             events.append(GETTING_CLOSER)
 
+        if new_features[0]>old_features[0]:
+            events.append(NEXT_TO_COIN)
+
+        #if agent takes a step away of available coins or an enemy is faster
+        #by reward it is guranteed that the reward for taking the coin and therefore out of range is higher than the loss for not taking it
+        if new_features[2]<old_features[2]:
+            events.append(LOOSING_COIN)
+
+        #agents moves towards the right direction?
+
+        if A=="LEFT" and new_features[6]>=new_features[5]:
+            events.append(GOOD_STEP)
+        if A=="RIGHT" and new_features[6]<=new_features[5]:
+            events.append(GOOD_STEP)
+        if A=="UP" and new_features[3]>=new_features[4]:
+            events.append(GOOD_STEP)
+        if A=="DOWN" and new_features[3]<=new_features[4]:
+            events.append(GOOD_STEP)
+
         gamma=0.9
-        alpha=0.3
+        alpha=0.25
         
         """
         if (self.model).all() ==None:
@@ -118,16 +171,16 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         #print(f"Grad: {grad_q_hat(S,A,w)}")
         #print(q_hat(S_prime,A_prime,w))
         #print(q_hat(S,A,w))
-        #print(reward_from_events(self,events))
+        print(reward_from_events(self,events))
         #print(gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))
         #print(alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w)))
         #print(alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad_q_hat(S,A,w))
 
 
-        #print(w)
+        print(w)
         #gradient method
         w=w+alpha*(reward_from_events(self,events)+gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad_q_hat(S,A,w)
-        
+        print(w)
 
         self.model=w
 
@@ -146,8 +199,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
     self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
 
-    S=state_to_features(last_game_state)
-        
+    #S=state_to_features(last_game_state)
+    S=last_game_state   
         
     #A=np.where(last_action==ACTIONS)[0]+1
     A=last_action
@@ -190,16 +243,20 @@ def reward_from_events(self, events: List[str]) -> int:
     game_rewards = {
         e.COIN_COLLECTED: 100,
         #e.KILLED_OPPONENT: 5,
-        e.MOVED_DOWN: -.1,
-        e.MOVED_LEFT: -.1,
-        e.MOVED_RIGHT: -.1,
-        e.MOVED_UP: -.1,
+        e.MOVED_DOWN: -.0,
+        e.MOVED_LEFT: -.0,
+        e.MOVED_RIGHT: -.0,
+        e.MOVED_UP: -.0,
         e.WAITED: -.1,
-        e.INVALID_ACTION: -1,
+        e.INVALID_ACTION: -0.1,
         e.KILLED_SELF: -10,
         e.GOT_KILLED: -5,
         THREATEN_BY_ONE: -0.1,
-        GETTING_CLOSER: 5,
+        GETTING_CLOSER: 3,
+        NEXT_TO_COIN: 10,
+        LOOSING_COIN: -2,
+        GOOD_STEP: 0.2,
+        SAFE_BOMB: 0.5,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
     reward_sum = 0

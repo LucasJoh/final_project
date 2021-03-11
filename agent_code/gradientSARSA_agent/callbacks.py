@@ -25,7 +25,7 @@ def setup(self):
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
-        self.model = np.full(10,0.1)
+        self.model = np.full(8,0.1)
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -36,17 +36,29 @@ def setup(self):
 def q_hat(S,A,w):
     #print(w)
     S_temp=S.copy()
-    if A=='UP':
-        S_temp[1]-=1
-    if A=='DOWN':
-        S_temp[1]+=1
-    if A=='RIGHT':
-        S_temp[0]+=1
-    if A=='LEFT':
-        S_temp[0]-=1
-
+    p = S_temp['self']
+    ###before applying new step, test whether step is possible
+    if p[3][1]%2==1:
+        if A=='UP':
+            if p[3][1]>=1:
+                S_temp['self']=(p[0],p[1],p[2],(p[3][0],p[3][1]-1))
+        if A=='DOWN':
+            if p[3][1]<=14:
+                S_temp['self']=(p[0],p[1],p[2],(p[3][0],p[3][1]+1))
+    if p[3][0]%2==1:
+        if A=='RIGHT':
+            if p[3][0]<=14:
+                S_temp['self']=(p[0],p[1],p[2],(p[3][0]+1,p[3][1]))
+        if A=='LEFT':
+            if p[3][0]>=2:
+                S_temp['self']=(p[0],p[1],p[2],(p[3][0]-1,p[3][1]))
+    if A=='BOMB':
+        S_temp['bombs'].append((p[3],4))
+    X=state_to_features(S_temp)
+    #print(X)
     #print(S_temp,S)
-    return w@S_temp
+    assert len(w)==len(X)
+    return w@X
 
 
 def act(self, game_state: dict) -> str:
@@ -60,7 +72,8 @@ def act(self, game_state: dict) -> str:
     """
     
 
-    S= state_to_features(game_state)
+    #S= state_to_features(game_state)
+    S=game_state
     action = range(1,len(ACTIONS)+1)
     """
     if len(self.model)!=len(S):
@@ -70,13 +83,15 @@ def act(self, game_state: dict) -> str:
     """
     w=self.model
     
-    assert len(S)==len(w)
+    #assert len(S)==len(w)
     greedy_ind = np.argmax(np.array([q_hat(S,a,w) for a in ACTIONS]))
     greedy=ACTIONS[greedy_ind]
+    l=[q_hat(S,a,w) for a in ACTIONS]
+    #print(w)
     
           
     # todo Exploration vs exploitation
-    epsilon = 0.1
+    epsilon = 0.01
     
     if self.train:
         #self.logger.debug("Choosing action purely at random.")
@@ -114,23 +129,90 @@ def state_to_features(game_state: dict) -> np.array:
     #for collecting coins we consider our own position and the position of coins
     
     coins=game_state['coins']
-    player=game_state['self']
+    player=game_state['self'][3]
     bombs = [b[0] for b in game_state['bombs']]
     l=4-len(bombs)
     for i in range(l): #get full list, with (0,0) as placeholder
         bombs.append((0,0))
+    """
     if coins== None: #if there are no coins to collect, we don't want to be confused
         nextcoin=np.array([0,0])
     else:
         p = np.full_like(coins,player[3])
         nextcoin = coins[np.argmin(np.linalg.norm(p-coins,axis=1))]
+    """
+    #
+    l2=9-len(coins)
+    if l2!=9:
+        for i in range(l2):
+            coins.append((0,0))
+    """
     channels.append(player[3])
-    channels.append(nextcoin)
-    for i in range(3):
-        channels.append(bombs[i])
+    for coin in coins:
+        channels.append(coin)
+    #channels.append(nextcoin)
+    for bomb in bombs:
+        channels.append(bomb)
+    """
+    ###define 3 neighborhoods of the player. To maximize the chance for a coin it is helpful to maximize the number of coins inside the nh.
+    ### find directly reachable coins
+    within_one=0
+    for coin in coins:
+        if coin[0]!=0:
+            if player[0] in range(coin[0]-1,coin[0]+1) and player[1] in range(coin[1]-1,coin[1]+1):
+                within_one+=1
+    channels.append(within_one)
+    ###find close coins
+    nearby=0
+    for coin in coins:
+        if coin[0]!=0:
+            if np.linalg.norm(np.asarray(player)-np.asarray(coin))<=3:
+                nearby+=1
+    channels.append(nearby)
+    ###find somehow reachable coins
+    reachable=0
+    for coin in coins:
+        if coin[0]!=0:
+            if np.linalg.norm(np.asarray(player)-np.asarray(coin))<=6:
+                reachable+=1
+    channels.append(reachable)
+     ###coins above
+    above=0
+    for coin in coins:
+        if coin[0]!=0:
+            if coin[1]>player[1]:
+                above+=1
+    channels.append(above)
+     ###coins beneath
+    ben=0
+    for coin in coins:
+        if coin[0]!=0:
+            if coin[1]<player[1]:
+                ben+=1
+    channels.append(ben)
+     ###coins right
+    right=0
+    for coin in coins:
+        if coin[0]!=0:
+            if coin[0]>player[0]:
+                right+=1
+    channels.append(right)
+     ###coins left
+    left=0
+    for coin in coins:
+        if coin[0]!=0:
+            if coin[0]<player[0]:
+                left+=1
+    channels.append(left)
     
+    ### collect how many bombs are currently safe
     
-    
+    safe_bombs=0
+    for i in range(len(bombs)):
+        if bombs[i][0]!=0:
+            if (player[0] not in range(bombs[i][0]-3,bombs[i][0]+3)) and (player[1] not in range(bombs[i][1]-3,bombs[i][1]+3)):
+                safe_bombs+=1
+    channels.append(safe_bombs)
     """
     for i in range(len(states)):
         for k in range(3):
@@ -141,6 +223,7 @@ def state_to_features(game_state: dict) -> np.array:
     # concatenate them as a feature tensor (they must have the same shape), ...
     stacked_channels = np.stack(channels)
     # and return them as a vector
+    #print(stacked_channels)
     return stacked_channels.reshape(-1)
     
     #return states
