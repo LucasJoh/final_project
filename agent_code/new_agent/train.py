@@ -77,8 +77,19 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
         # transforming old game state and new game state to rotated game states
         old_game_state, oldstate = game_state_transformer(self, old_game_state)
- 
         new_game_state, new_state = game_state_transformer(self, new_game_state)
+
+        self.logger.debug(f"{self_action}")
+        if self_action in ["LEFT", "RIGHT", "UP", "DOWN"]:
+                    if oldstate == "ru":
+                        self_action = self.order_ld[self_action]
+                    if oldstate == "rd":
+                        self_action = self.order_rd[self_action]
+                    if oldstate == "ld":
+                        self_action = self.order_ru[self_action]
+
+        self.logger.debug(f"{oldstate}")
+        self.logger.debug(f"{self_action}")
 
         # getting oldposition and new position on rotated board
         oldpos = old_game_state['self'][3]
