@@ -22,28 +22,6 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-
-    self.last_a = None
-
-    # coordinate setup
-    coords_x = np.array([[i for i in range(1, 16)] for j in range(1,16)])
-    coords_y = np.array([[j for i in range(1, 16)] for j in range(1,16)])
-    
-    self.ld_x = np.rot90(coords_x, k=1, axes=(0, 1))
-    self.ld_y = np.rot90(coords_y, k=1, axes=(0, 1))
-
-    self.rd_x = np.rot90(self.ld_x)
-    self.rd_y = np.rot90(self.ld_y)
-
-    
-    self.ru_x = np.rot90(self.rd_x)
-    self.ru_y = np.rot90(self.rd_y)
-
-
-    self.order_ru = {"LEFT": "UP", "RIGHT": "DOWN", "UP": "RIGHT", "DOWN": "LEFT"}
-    self.order_rd = {"LEFT": "RIGHT", "RIGHT": "LEFT", "UP": "DOWN", "DOWN": "UP"}
-    self.order_ld = {"LEFT": "DOWN", "UP": "LEFT", "RIGHT": "UP", "DOWN": "RIGHT"}
-    
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(len(ACTIONS))
@@ -53,14 +31,27 @@ def setup(self):
         with open("my-saved-model.pt", "rb") as file:
             self.model = pickle.load(file)
 
-    if not self.train:
-        try:
-            self.coin_states_actions = pickle.load(open("coin_states_actions.pt", "rb"))
-        except:
-            raise Exception("coin_states_actions could not be loaded")
-            self.coin_states_actions = None
-            self.logger.debug(f"coin_states_actions could not be loaded")
+    # coordinate setup
+    coords_x = np.array([[i for i in range(1, 16)] for j in range(1,16)])
+    coords_y = np.array([[j for i in range(1, 16)] for j in range(1,16)])
+    
+    self.ld_x = np.rot90(coords_x, k=1, axes=(0, 1))
+    self.ld_y = np.rot90(coords_y, k=1, axes=(0, 1))
+    self.logger.debug(f"{self.ld_x}")
 
+    self.rd_x = np.rot90(self.ld_x)
+    self.rd_y = np.rot90(self.ld_y)
+
+    self.logger.debug(f"{self.rd_x}")
+    
+    self.ru_x = np.rot90(self.rd_x)
+    self.ru_y = np.rot90(self.rd_y)
+
+    self.logger.debug(f"{self.ru_x}")
+
+    self.order_ru = {"LEFT": "UP", "RIGHT": "DOWN", "UP": "RIGHT", "DOWN": "LEFT"}
+    self.order_rd = {"LEFT": "RIGHT", "RIGHT": "LEFT", "UP": "DOWN", "DOWN": "UP"}
+    self.order_ld = {"LEFT": "DOWN", "UP": "LEFT", "RIGHT": "UP", "DOWN": "RIGHT"}
 
 def act(self, game_state: dict) -> str:
     """
@@ -71,59 +62,23 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
-    
+    a = "RIGHT"
+    self.logger.debug(f"{game_state['self'][3]}")
+    game_state, state = game_state_transformer(self, game_state)
+    self.logger.debug(f"{state}")
+    self.logger.debug(f"{game_state['self'][3]}")
 
-    new_game_state, state= game_state_transformer(self, game_state)
-
-    
-    ownpos = new_game_state["self"][3]
-    coin, min = get_nearest_coin_position(ownpos, game_state["coins"])
-    
-
-    if coin != None:
-        state_id = str(ownpos[0]) + str(ownpos[1]) + str(coin[0]) + str(coin[1])
-        val = -10000000
-        actions = []
-
-        for action in ["LEFT", "RIGHT", "UP", "DOWN"]:
-            if self.coin_states_actions[state_id + action] == val:
-                actions.append(action)
-
-            elif self.coin_states_actions[state_id + action] > val:
-                val = self.coin_states_actions[state_id + action]
-                actions = [action]
-        
-        if actions == []:
-            return np.random.choice(["LEFT", "RIGHT", "UP", "DOWN"])
-        elif len(action) > 1:
-            a = np.random.choice(actions)
-        else:
-            a = actions[0]
-
-        if val == -10000000:
-            a = "WAIT"
-    
-    else:
-        self.logger.debug("Choosing action purely at random.")
-        # 80%: walk in any direction. 10% wait. 10% bomb.
-        return np.random.choice(["LEFT", "RIGHT", "UP", "DOWN"])
-
-
-    ## EXPLORATION
-    random_prob = .4
-    if self.train and random.random() < random_prob:
-        self.logger.debug("Choosing action purely at random.")
-        return np.random.choice(["LEFT", "RIGHT", "UP", "DOWN"])
-
-    # if a in ["LEFT", "RIGHT", "UP", "DOWN"]:
-    #                 if state == "ru":
-    #                     a = self.order_ru[a]
-    #                 if state == "rd":
-    #                     a = self.order_rd[a]
-    #                 if state == "ld":
-    #                     a = self.order_ld[a]
+    if a in ["LEFT", "RIGHT", "UP", "DOWN"]:
+                    if state == "ru":
+                        a = self.order_ru[a]
+                    if state == "rd":
+                        a = self.order_rd[a]
+                    if state == "ld":
+                        a = self.order_ld[a]
     self.logger.debug(f"{a}")
+
     return a
+
 
 def state_to_features(game_state: dict) -> np.array:
     """
@@ -234,23 +189,3 @@ def game_state_transformer(self, game_state):
     new_game_state['self'][3] = tuple(new_pos)
 
     return new_game_state, state
-
-    
-    
-
-# gets position of nearest coin
-def get_nearest_coin_position(own_pos, coin_pos):
-    min = 1000
-    coin = (0,0)
-
-    for c in coin_pos:
-        dist = abs(c[0] - own_pos[0]) + abs(c[1] - own_pos[1])
-
-        if dist < min:
-            min = dist
-            coin = c
-    if coin == (0,0):
-        return None, None
-    else:
-        return coin, min
-    

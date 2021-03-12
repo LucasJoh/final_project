@@ -43,6 +43,7 @@ def setup_training(self):
         self.coin_states_actions = None
         self.logger.debug(f"coin_states_actions could not be loaded")
 
+    self.preoldpos = None
 
     # if self.coin_states == None:
     #     self.coin_states = {}
@@ -90,28 +91,43 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     # # state_to_features is defined in callbacks.py
     # self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
-    
+    reward = 0
     if self_action in ["LEFT", "RIGHT", "UP", "DOWN"]:
-        ownpos = game_state_transformer(self, old_game_state)[0]['self'][3]
+
         
-        oldcoin, oldmin = get_nearest_coin_position(ownpos, old_game_state["coins"])
-        newmin = np.linalg.norm(np.array(oldcoin) - np.array(new_game_state['self'][3]))
+
+        old_game_state, oldstate = game_state_transformer(self, old_game_state)
+ 
+        new_game_state, new_state = game_state_transformer(self, new_game_state)
+
+        oldpos = old_game_state['self'][3]
+        newpos = new_game_state['self'][3]
+        oldcoin, oldmin = get_nearest_coin_position(oldpos, old_game_state["coins"])
+        newcoin, newmin = get_nearest_coin_position(newpos, new_game_state["coins"])
+
+        if oldcoin != None:
+            self.oldcoin = oldcoin
+
+            if newmin == oldmin:
+                reward = -2
+            else:
+                reward = (oldmin - newmin)
+            if reward < 0:
+                reward = 40* reward
+
+            if self.preoldpos != None:
+                if newpos == self.preoldpos:
+                    reward += -5
+            self.preoldpos = oldpos
+            reward += reward_from_events(self, events)
+
+            self.logger.info(f"Awarded {reward}")
+            self.logger.info(f"mins {oldmin}, {newmin}")
+            self.logger.info(f"position {oldpos}")
+            self.coin_states_actions[str(oldpos[0]) + str(oldpos[1]) + str(oldcoin[0]) + str(oldcoin[1]) + self_action] += reward
 
 
-        if newmin == oldmin:
-            reward = 0
-        else:
-            reward = (oldmin - newmin)
-        reward += reward_from_events(self, events)
-
-        self.logger.info(f"Awarded {reward}")
-
-    if self_action == "WAIT":
-        if self.last_a != None:
-            self.coin_states_actions[str(ownpos[0]) + str(ownpos[1]) + str(oldcoin[0]) + str(oldcoin[1]) + self_action] += -5
-
-
-        self.coin_states_actions[str(ownpos[0]) + str(ownpos[1]) + str(oldcoin[0]) + str(oldcoin[1]) + self_action] += reward
+    
 
     
 
@@ -129,6 +145,20 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
     self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
+
+    reward = 0
+    if last_action in ["LEFT", "RIGHT", "UP", "DOWN"]:
+        oldpos = self.preoldpos
+        oldcoin = self.oldcoin
+
+        if oldcoin != None:
+            reward = reward_from_events(self, events)
+
+            self.logger.info(f"Awarded {reward}")
+            
+            self.coin_states_actions[str(oldpos[0]) + str(oldpos[1]) + str(oldcoin[0]) + str(oldcoin[1]) + last_action] += reward
+
+
 
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
@@ -153,6 +183,7 @@ def reward_from_events(self, events: List[str]) -> int:
         e.KILLED_SELF: -100,
         e.GOT_KILLED: -5,
         e.SURVIVED_ROUND: 5,
+        e.INVALID_ACTION: -500,
         #e.KILLED_OPPONENT: 5,
         #PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
@@ -169,13 +200,13 @@ def get_nearest_coin_position(own_pos, coin_pos):
     coin = (0,0)
 
     for c in coin_pos:
-        dist = np.linalg.norm(np.array(c) - np.array(own_pos))
+        dist = abs(c[0] - own_pos[0]) + abs(c[1] - own_pos[1])
 
         if dist < min:
             min = dist
             coin = c
     if coin == (0,0):
-        return None
+        return None, None
     else:
         return coin, min
 
@@ -183,14 +214,18 @@ def get_nearest_coin_position(own_pos, coin_pos):
 def game_state_transformer(self, game_state):
     new_game_state = game_state
     own_pos = game_state['self'][3]
+    new_pos = list(own_pos)
     state = ""
 
     for i in range(len(new_game_state['bombs'])):
         new_game_state['bombs'][i] = list(new_game_state['bombs'][i])
+
+    for i in range(len(new_game_state['coins'])):
+        new_game_state['coins'][i] = list(new_game_state['coins'][i])
  
-    if own_pos[1] > 8:
+    if own_pos[0] > 8:
 
-        if own_pos[0] > 8:
+        if own_pos[1] > 8:
 
             new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
             new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
@@ -198,54 +233,63 @@ def game_state_transformer(self, game_state):
             new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
             new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
 
-            own_pos = self.rd[own_pos[0] - 1][own_pos[1] - 1]
+            new_pos[0] = self.rd_x[own_pos[1] - 1][own_pos[0] - 1]
+            new_pos[1] = self.rd_y[own_pos[1] - 1][own_pos[0] - 1]
 
             for i in range(len(new_game_state['coins'])):
-                new_game_state['coins'][i] = self.rd[new_game_state['coins'][i][0] - 1][new_game_state['coins'][i][1] - 1]
+                new_game_state['coins'][i][0] = self.rd_x[new_game_state['coins'][i][0] - 1][new_game_state['coins'][i][1] - 1]
+                new_game_state['coins'][i][1] = self.rd_y[new_game_state['coins'][i][0] - 1][new_game_state['coins'][i][1] - 1]
 
             for i in range(len(new_game_state['bombs'])):
-                new_game_state['bombs'][i][0] = self.rd[new_game_state['bombs'][i][0][0] - 1][new_game_state['bombs'][i][0][1] - 1]
+                new_game_state['bombs'][i][0][0] = self.rd_x[new_game_state['bombs'][i][0][0] - 1][new_game_state['bombs'][i][0][1] - 1]
+                new_game_state['bombs'][i][0][1] = self.rd_y[new_game_state['bombs'][i][0][0] - 1][new_game_state['bombs'][i][0][1] - 1]
             
             state = "rd"
         else:
 
             new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
-            new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
-            new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
             
 
             new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
-            new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
-            new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
             
-            own_pos = self.ru[own_pos[0] - 1][own_pos[1] - 1]
+            new_pos[0] = self.ru_x[own_pos[1] - 1][own_pos[0] - 1]
+            new_pos[1] = self.ru_y[own_pos[1] - 1][own_pos[0] - 1]
 
             for i in range(len(new_game_state['coins'])):
-                new_game_state['coins'][i] = self.ru[new_game_state['coins'][i][0] - 1][new_game_state['coins'][i][1] - 1]
+                new_game_state['coins'][i][0] = self.ru_x[new_game_state['coins'][i][0] - 1][new_game_state['coins'][i][1] - 1]
+                new_game_state['coins'][i][1] = self.ru_y[new_game_state['coins'][i][0] - 1][new_game_state['coins'][i][1] - 1]
 
             for i in range(len(new_game_state['bombs'])):
-                new_game_state['bombs'][i][0] = self.ru[new_game_state['bombs'][i][0][0] - 1][new_game_state['bombs'][i][0][1] - 1]
+                new_game_state['bombs'][i][0][0] = self.ru_x[new_game_state['bombs'][i][0][0] - 1][new_game_state['bombs'][i][0][1] - 1]
+                new_game_state['bombs'][i][0][1] = self.ru_y[new_game_state['bombs'][i][0][0] - 1][new_game_state['bombs'][i][0][1] - 1]
 
             state = "ru"
             
             
-    elif own_pos[0] > 8:
+    elif own_pos[1] > 8:
 
         new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
-            
+        new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
+        new_game_state['field'] = np.array(list(zip(*new_game_state['field']))[::-1])
+
+        new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
+        new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
         new_game_state['explosion_map'] = np.array(list(zip(*new_game_state['explosion_map']))[::-1])
 
-        own_pos = self.ld[own_pos[0] - 1][own_pos[1] - 1]
+        new_pos[0] = self.ld_x[own_pos[1] - 1][own_pos[0] - 1]
+        new_pos[1] = self.ld_y[own_pos[1] - 1][own_pos[0] - 1]
 
         for i in range(len(new_game_state['coins'])):
-            new_game_state['coins'][i] = self.ld[new_game_state['coins'][i][0] - 1][new_game_state['coins'][i][1] - 1]
+            new_game_state['coins'][i][0] = self.ld_x[new_game_state['coins'][i][0] - 1][new_game_state['coins'][i][1] - 1]
+            new_game_state['coins'][i][1] = self.ld_y[new_game_state['coins'][i][0] - 1][new_game_state['coins'][i][1] - 1]
 
         for i in range(len(new_game_state['bombs'])):
-            new_game_state['bombs'][i][0] = self.ld[new_game_state['bombs'][i][0][0] - 1][new_game_state['bombs'][i][0][1] - 1]
+            new_game_state['bombs'][i][0][0] = self.ld_x[new_game_state['bombs'][i][0][0] - 1][new_game_state['bombs'][i][0][1] - 1]
+            new_game_state['bombs'][i][0][1] = self.ld_y[new_game_state['bombs'][i][0][0] - 1][new_game_state['bombs'][i][0][1] - 1]
 
         state = "ld"
 
     new_game_state['self'] = list(new_game_state['self'])
-    new_game_state['self'][3] = own_pos
+    new_game_state['self'][3] = tuple(new_pos)
 
     return new_game_state, state
