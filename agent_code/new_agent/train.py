@@ -6,6 +6,8 @@ from typing import List
 import events as e
 from .callbacks import state_to_features
 
+from agent_funcs import *
+
 # This is only an example!
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
@@ -30,6 +32,26 @@ def setup_training(self):
     # (s, a, r, s')
     self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
 
+    try:
+        self.coin_states_actions = pickle.load(open("coin_states_actions.pt", "rb"))
+    except:
+        self.coin_states_actions = None
+        self.logger.debug(f"coin_states_actions could not be loaded")
+
+    self.preoldpos = None
+
+    if self.coin_states_actions == None:
+        self.coin_states_actions = {}
+        for i in range(1, 9):
+            for j in range(1, 9):
+                for k in range(1, 16):
+                    for l in range(1, 16):
+                        self.coin_states_actions[str(i) + str(j) + str(k) + str(l) + "LEFT"] = 1
+                        self.coin_states_actions[str(i) + str(j) + str(k) + str(l) + "RIGHT"] = 1
+                        self.coin_states_actions[str(i) + str(j) + str(k) + str(l) + "UP"] = 1
+                        self.coin_states_actions[str(i) + str(j) + str(k) + str(l) + "DOWN"] = 1
+
+
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
     """
@@ -50,12 +72,54 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
-    # Idea: Add your own events to hand out rewards
-    if ...:
-        events.append(PLACEHOLDER_EVENT)
+    reward = 0
+    if self_action in ["LEFT", "RIGHT", "UP", "DOWN"]:
 
-    # state_to_features is defined in callbacks.py
-    self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
+        # transforming old game state and new game state to rotated game states
+        old_game_state, oldstate = game_state_transformer(self, old_game_state)
+ 
+        new_game_state, new_state = game_state_transformer(self, new_game_state)
+
+        # getting oldposition and new position on rotated board
+        oldpos = old_game_state['self'][3]
+        newpos = new_game_state['self'][3]
+
+        # get nearest coin positionb and distance to it on rotated board
+        oldcoin, oldmin = get_nearest_coin_position(oldpos, old_game_state["coins"])
+        newcoin, newmin = get_nearest_coin_position(newpos, new_game_state["coins"])
+
+        # if there is a coin on the board reward the bot according to rule set
+        if oldcoin != None:
+            self.oldcoin = oldcoin
+
+            # punish not lowering distance
+            if newmin == oldmin:
+                reward += -0.5
+
+            #reward lowering distance
+            elif newmin < oldmin:
+                reward += 1
+
+            # punish increasing distance
+            elif newmin > oldmin:
+                reward += -1 
+
+            # if reward < 0:
+            #     reward = 40* reward
+
+            # punish visiting tile twice (to try and minimize getting stuck between two tiles)
+            if self.preoldpos != None:
+                if newpos == self.preoldpos:
+                    reward += -2
+
+            self.preoldpos = oldpos
+            reward += reward_from_events(self, events)
+
+            self.logger.info(f"Awarded {reward}")
+            self.logger.info(f"mins {oldmin}, {newmin}")
+            self.logger.info(f"position {oldpos}")
+            self.coin_states_actions[str(oldpos[0]) + str(oldpos[1]) + str(oldcoin[0]) + str(oldcoin[1]) + self_action] += reward
+
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -77,6 +141,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     with open("my-saved-model.pt", "wb") as file:
         pickle.dump(self.model, file)
 
+    with open("coin_states_actions.pt", "wb") as file:
+        pickle.dump(self.coin_states_actions, file)
+
 
 def reward_from_events(self, events: List[str]) -> int:
     """
@@ -86,8 +153,12 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 1,
+        e.COIN_COLLECTED: 10,
         e.KILLED_OPPONENT: 5,
+        e.KILLED_SELF: -100,
+        e.GOT_KILLED: -5,
+        e.SURVIVED_ROUND: 5,
+        e.INVALID_ACTION: -5,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
     reward_sum = 0

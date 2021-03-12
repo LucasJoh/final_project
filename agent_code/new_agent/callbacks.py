@@ -4,9 +4,7 @@ import random
 
 import numpy as np
 
-from functions import get_nearest_coin_position
-from functions import game_state_transformer
-from functions import setup_coords
+from agent_funcs import *
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -37,6 +35,13 @@ def setup(self):
     #setting up coordinates for rotating the board
     setup_coords(self)
 
+    if not self.train:
+        try:
+            self.coin_states_actions = pickle.load(open("coin_states_actions.pt", "rb"))
+        except:
+            raise Exception("coin_states_actions could not be loaded")
+            self.coin_states_actions = None
+            self.logger.debug(f"coin_states_actions could not be loaded")
 
 def act(self, game_state: dict) -> str:
     """
@@ -48,21 +53,19 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
 
-
-##############################################
     new_game_state, state= game_state_transformer(self, game_state)
 
     
     ownpos = new_game_state["self"][3]
-    coin, min = get_nearest_coin_position(ownpos, game_state["coins"])
+    coin, min = get_nearest_coin_position(ownpos, new_game_state["coins"])
     
 
     if coin != None:
         state_id = str(ownpos[0]) + str(ownpos[1]) + str(coin[0]) + str(coin[1])
-        actions = ["LEFT"]
-        val = self.coin_states_actions[state_id + "LEFT"]
+        actions = ["WAIT"]
+        val = 0
 
-        for action in ["RIGHT", "UP", "DOWN"]:
+        for action in ["LEFT", "RIGHT", "UP", "DOWN"]:
             if self.coin_states_actions[state_id + action] == val:
                 actions.append(action)
 
@@ -76,9 +79,6 @@ def act(self, game_state: dict) -> str:
             a = np.random.choice(actions)
         else:
             a = actions[0]
-
-        if val == -10000000:
-            a = "WAIT"
     
     else:
         self.logger.debug("Choosing action purely at random.")
@@ -87,22 +87,21 @@ def act(self, game_state: dict) -> str:
 
 
     ## EXPLORATION
-    random_prob = .4
+    random_prob = .05
     if self.train and random.random() < random_prob:
         self.logger.debug("Choosing action purely at random.")
         return np.random.choice(["LEFT", "RIGHT", "UP", "DOWN"])
 
-    # if a in ["LEFT", "RIGHT", "UP", "DOWN"]:
-    #                 if state == "ru":
-    #                     a = self.order_ru[a]
-    #                 if state == "rd":
-    #                     a = self.order_rd[a]
-    #                 if state == "ld":
-    #                     a = self.order_ld[a]
+    if a in ["LEFT", "RIGHT", "UP", "DOWN"]:
+                    if state == "ru":
+                        a = self.order_ru[a]
+                    if state == "rd":
+                        a = self.order_rd[a]
+                    if state == "ld":
+                        a = self.order_ld[a]
     self.logger.debug(f"{a}")
     return a
 
-    #####################################################################
 
 def state_to_features(game_state: dict) -> np.array:
     """
