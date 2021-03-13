@@ -4,6 +4,7 @@ import random
 
 import numpy as np
 
+from agent_funcs import *
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -31,6 +32,8 @@ def setup(self):
         with open("my-saved-model.pt", "rb") as file:
             self.model = pickle.load(file)
 
+    #setting up coordinates for rotating the board
+    setup_coords(self)
 
 def act(self, game_state: dict) -> str:
     """
@@ -41,15 +44,35 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
-    # todo Exploration vs exploitation
-    random_prob = .1
+
+    find_threats(self, game_state)
+    self.logger.debug(f"{game_state['bombs']}")
+    
+    new_game_state, state= game_state_transformer(self, game_state)
+    self.logger.debug(f"rotating")
+    find_threats(self, new_game_state)
+    self.logger.debug(f"{new_game_state['bombs']}")
+    
+    ownpos = new_game_state["self"][3]
+    coin, min = get_nearest_coin_position(ownpos, new_game_state["coins"])
+
+
+    ## EXPLORATION
+    random_prob = 1
     if self.train and random.random() < random_prob:
         self.logger.debug("Choosing action purely at random.")
-        # 80%: walk in any direction. 10% wait. 10% bomb.
-        return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])
+        return np.random.choice(["LEFT", "RIGHT", "UP", "DOWN"])
 
-    self.logger.debug("Querying model for action.")
-    return np.random.choice(ACTIONS, p=self.model)
+    # self.logger.debug(f"{a}")
+    # if a in ["LEFT", "RIGHT", "UP", "DOWN"]:
+    #                 if state == "ru":
+    #                     a = self.order_ru[a]
+    #                 if state == "rd":
+    #                     a = self.order_rd[a]
+    #                 if state == "ld":
+    #                     a = self.order_ld[a]
+    # self.logger.debug(f"{a}")
+    # return a
 
 
 def state_to_features(game_state: dict) -> np.array:

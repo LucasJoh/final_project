@@ -109,7 +109,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
             #reward lowering distance
             elif newmin < oldmin:
-                reward += 1
+                reward += 1/(old_game_state['step'])
 
             # punish increasing distance
             elif newmin > oldmin:
