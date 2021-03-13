@@ -87,7 +87,7 @@ def act(self, game_state: dict) -> str:
 
 
     ## EXPLORATION
-    random_prob = 0.3
+    random_prob = 0.2
     if self.train and random.random() < random_prob:
         self.logger.debug("Choosing action purely at random.")
         return np.random.choice(["LEFT", "RIGHT", "UP", "DOWN"])

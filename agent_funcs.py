@@ -121,7 +121,6 @@ def setup_coords(self):
     self.order_rd = {"LEFT": "RIGHT", "RIGHT": "LEFT", "UP": "DOWN", "DOWN": "UP"}
     self.order_ld = {"LEFT": "DOWN", "UP": "LEFT", "RIGHT": "UP", "DOWN": "RIGHT"}
 
-def find_bombs(self, game_state):
-    if game_state["bombs"] != []:
-        for bomb in game_state["bombs"]:
-              
+# def find_bombs(self, game_state):
+#     if game_state["bombs"] != []:
+#         for bomb in game_state["bombs"]:
