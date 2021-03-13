@@ -352,7 +352,7 @@ class BombeRLeWorld(GenericWorld):
                         self.coins.append(Coin((x + i, x + j), self.arena[x+i,x+j] == 0))
                         coins[x + i, x + j] += 1"""
         for i in range(2):
-            for j in range(1):
+            for j in range(2):
                 n_crates = (self.arena[1 + 5 * i:6 + 5 * i, 1 + 5 * j:6 + 5 * j] == 1).sum()
                 while True:
                     x, y = np.random.randint(1 + 5 * i, 6 + 5 * i), np.random.randint(1 + 5 * j, 6 + 5 * j)
