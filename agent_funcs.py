@@ -125,10 +125,15 @@ def setup_coords(self):
     self.order_rd = {"LEFT": "RIGHT", "RIGHT": "LEFT", "UP": "DOWN", "DOWN": "UP"}
     self.order_ld = {"LEFT": "DOWN", "UP": "LEFT", "RIGHT": "UP", "DOWN": "RIGHT"}
 
+# find threats near the agent
+
 def find_threats(self, game_state):
     
     own_pos = game_state['self'][3]
     bombs = []
+    dist = []
+    danger = False
+    explosions = []
     if game_state["bombs"] != []:
 
         for j in range(len(game_state["bombs"])):
@@ -136,6 +141,22 @@ def find_threats(self, game_state):
             if (abs(game_state["bombs"][j][0][0] - own_pos[0]) < 4  and game_state["bombs"][j][0][1] == own_pos[1]) or (abs(game_state["bombs"][j][0][1] - own_pos[1]) < 4 and game_state["bombs"][j][0][0] == own_pos[0]):
                 self.logger.debug(f"Theres a bomb")
                 bombs.append(j)
+                dist.append(abs(game_state["bombs"][j][0][0] - own_pos[0]) + abs(game_state["bombs"][j][0][1] - own_pos[1]))
+                danger = True
+        
+    if game_state['explosion_map'][own_pos[0]][own_pos[1] - 1] != 0:
+        explosions.append("RIGHT")
+    
+    if game_state['explosion_map'][own_pos[0] - 2][own_pos[1] - 1] != 0:
+        explosions.append("LEFT")
+    
+    if game_state['explosion_map'][own_pos[0] - 1][own_pos[1]] != 0:
+        explosions.append("DOWN")
+    
+    if game_state['explosion_map'][own_pos[0] - 1][own_pos[1] - 2] != 0:
+        explosions.append("UP")
+
+    return bombs, dist, danger, explosions
     
     
 

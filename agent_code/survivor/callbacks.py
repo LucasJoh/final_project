@@ -46,12 +46,9 @@ def act(self, game_state: dict) -> str:
     """
 
     find_threats(self, game_state)
-    self.logger.debug(f"{game_state['bombs']}")
     
     new_game_state, state= game_state_transformer(self, game_state)
-    self.logger.debug(f"rotating")
     find_threats(self, new_game_state)
-    self.logger.debug(f"{new_game_state['bombs']}")
     
     ownpos = new_game_state["self"][3]
     coin, min = get_nearest_coin_position(ownpos, new_game_state["coins"])
