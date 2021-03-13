@@ -23,6 +23,7 @@ NEXT_TO_COIN = "NEXT_TO_COIN"
 LOOSING_COIN = "LOOSING_COIN"
 GOOD_STEP = "GOOD_STEP"
 SAFE_BOMB = "SAFE_BOMB"
+CLOSER_TO_COIN = "CLOSER_TO_COIN"
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -97,7 +98,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
                 if (S_prime[0] in range(S_prime[i*2]-3,S_prime[i*2]+3)) or (S_prime[1] in range(S_prime[(i*2)+1]-3,S_prime[(i*2)+1]+3)):
                     events.append(THREATEN_BY_ONE)
         """
-        for i in range(new_features[7]):
+        for i in range(new_features[8]):
             events.append(SAFE_BOMB)
         #if threat==1:
         #    events.append(THREATEN_BY_ONE)
@@ -138,17 +139,18 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
         #agents moves towards the right direction?
 
-        if A=="LEFT" and new_features[6]>=new_features[5]:
+        if A=="LEFT" and new_features[6]>new_features[5]:
             events.append(GOOD_STEP)
-        if A=="RIGHT" and new_features[6]<=new_features[5]:
+        if A=="RIGHT" and new_features[6]<new_features[5]:
             events.append(GOOD_STEP)
-        if A=="UP" and new_features[3]>=new_features[4]:
+        if A=="UP" and new_features[3]>new_features[4]:
             events.append(GOOD_STEP)
-        if A=="DOWN" and new_features[3]<=new_features[4]:
+        if A=="DOWN" and new_features[3]<new_features[4]:
             events.append(GOOD_STEP)
-
+        if new_features[7]<old_features[7]:
+            events.append(CLOSER_TO_COIN)
         gamma=0.9
-        alpha=0.25
+        alpha=0.05
         
         """
         if (self.model).all() ==None:
@@ -171,16 +173,18 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         #print(f"Grad: {grad_q_hat(S,A,w)}")
         #print(q_hat(S_prime,A_prime,w))
         #print(q_hat(S,A,w))
-        print(reward_from_events(self,events))
+        #print(reward_from_events(self,events))
         #print(gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))
         #print(alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w)))
         #print(alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad_q_hat(S,A,w))
 
 
-        print(w)
+        #print(w)
         #gradient method
+
+        ####Iteration
         w=w+alpha*(reward_from_events(self,events)+gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad_q_hat(S,A,w)
-        print(w)
+        #print(w)
 
         self.model=w
 
@@ -223,7 +227,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     greedy_ind = np.argmax(np.array([q_hat(S,a,w) for a in ACTIONS]))
     
     
-
+    #iteration
     w=w+alpha*(reward_from_events(self,events)-gamma*q_hat(S,A,w)-q_hat(S,A,w))*grad_q_hat(S,A,w)
 
     self.model=w
@@ -248,11 +252,12 @@ def reward_from_events(self, events: List[str]) -> int:
         e.MOVED_RIGHT: -.0,
         e.MOVED_UP: -.0,
         e.WAITED: -.1,
-        e.INVALID_ACTION: -0.1,
+        e.INVALID_ACTION: -10,
         e.KILLED_SELF: -10,
         e.GOT_KILLED: -5,
         THREATEN_BY_ONE: -0.1,
         GETTING_CLOSER: 3,
+        CLOSER_TO_COIN: 5,
         NEXT_TO_COIN: 10,
         LOOSING_COIN: -2,
         GOOD_STEP: 0.2,
