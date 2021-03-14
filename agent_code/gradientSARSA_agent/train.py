@@ -74,7 +74,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     #    events.append(PLACEHOLDER_EVENT)
 
     # state_to_features is defined in callbacks.py
-    self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
+    #self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
     if old_game_state == None:
         pass
     else:
@@ -99,7 +99,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
                     events.append(THREATEN_BY_ONE)
         """
         #print(new_features[:6])
-        for i in range(int(new_features[5])):
+        for i in range(int(new_features[1])):
             events.append(SAFE_BOMB)
         #if threat==1:
         #    events.append(THREATEN_BY_ONE)
@@ -127,8 +127,9 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             if np.linalg.norm(old_p-old_c)>np.linalg.norm(new_p-new_c):
                 events.append(GETTING_CLOSER)
         """
-        if new_features[4]>old_features[4]:
+        if new_features[0]>old_features[0]:
             events.append(GETTING_CLOSER)
+            
             
 
         #if new_features[0]>old_features[0]:
@@ -136,11 +137,11 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
         #if agent takes a step away of available coins or an enemy is faster
         #by reward it is guranteed that the reward for taking the coin and therefore out of range is higher than the loss for not taking it
-        if (new_features[2]<old_features[2]):
+        if (new_features[0]<old_features[0]):
             events.append(LOOSING_COIN)
 
         #agents moves towards the right direction?
-
+        """
         if e.INVALID_ACTION not in events:
             if A=="LEFT" and new_features[3]>new_features[2]:
                 events.append(GOOD_STEP)
@@ -154,8 +155,10 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             #    events.append(CLOSER_TO_COIN)
             #if new_features[7]<old_features[7]:
             #    events.append(LOOSING_COIN)
-        gamma=0.9
-        alpha=0.05
+        """
+
+        gamma=0.7
+        alpha=0.2
         
         """
         if (self.model).all() ==None:
@@ -169,13 +172,14 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         
         action=range(1,len(ACTIONS)+1)
         epsilon=0.05
-        tester = np.array([q_hat(S,a,w) for a in ACTIONS])
+        tester = np.array([np.abs(q_hat(S,a,w)) for a in ACTIONS])
         if np.all(tester==tester[0]):###if all entries are equal the first entry is chosen by argmax
             greedy = np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB'], p=[.23, .23, .23, .23, .08])
         else:
             greedy_ind = np.argmax(tester)
             greedy=ACTIONS[greedy_ind]
-        A_prime=np.random.choice((greedy,np.random.choice(ACTIONS,1)),1,[1-epsilon,epsilon])
+        #A_prime=np.random.choice((greedy,np.random.choice(ACTIONS,1)),1,[1-epsilon,epsilon])###SARSA
+        A_prime = greedy ###Q-learning
         
         
         #use gradient SARSA (p.244)
@@ -184,18 +188,22 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         #print(q_hat(S,A,w))
         #print(reward_from_events(self,events))
         #print(new_features[0:9])
-        #print(gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))
+        #print(0,q_hat(S_prime,A_prime,w) ,q_hat(S,A,w))
+        #print(1,gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))
         #print(alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w)))
-        #print(w)
-        #print(alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad_q_hat(S,A,w))
+        #print(1,w)
+        #print(2,alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad_q_hat(S,A,w))
 
 
         #print(w)
         #gradient method
-
+        #print(state_to_features(S_prime)[:6],grad_q_hat(S,A,w)[0:6])
         ####Iteration
-        w=w+alpha*(reward_from_events(self,events)+gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad_q_hat(S,A,w)
-        #print(w)
+        R=reward_from_events(self,events)
+        w=w+alpha*(R+gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad_q_hat(S,A,w)
+        #w=w+alpha*(R)*grad_q_hat(S,A,w)
+        #print(2,R)
+        #print(3,w)
 
         self.model=w
 
@@ -256,14 +264,14 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 100,
+        e.COIN_COLLECTED: 10,
         #e.KILLED_OPPONENT: 5,
         e.MOVED_DOWN: -.1,
         e.MOVED_LEFT: -.1,
         e.MOVED_RIGHT: -.1,
         e.MOVED_UP: -.1,
         e.WAITED: -.1,
-        e.INVALID_ACTION: -10,
+        e.INVALID_ACTION: -1,
         e.KILLED_SELF: -10,
         e.GOT_KILLED: -5,
         THREATEN_BY_ONE: -0.1,

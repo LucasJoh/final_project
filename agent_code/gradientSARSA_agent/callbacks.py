@@ -25,7 +25,7 @@ def setup(self):
     if not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
-        self.model = np.full(22,0.1)
+        self.model = np.full(2,0.1)
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -57,10 +57,12 @@ def q_hat(S,A,w):
     #print(p[3], A,S_temp['self'][3])
     X=state_to_features(S_temp)
     #print(X[:7])
-    #print(X)
+    #print("X:",X)
+    #print("w:",w)
     #print(S_temp,S)
     #print(len(X))
     assert len(w)==len(X)
+    #print("q:",w@X)
     return w@X
 
 
@@ -87,7 +89,7 @@ def act(self, game_state: dict) -> str:
     w=self.model
     
     #assert len(S)==len(w)
-    tester = np.array([q_hat(S,a,w) for a in ACTIONS])
+    tester = np.array([np.abs(q_hat(S,a,w)) for a in ACTIONS])
     if np.all(tester==tester[0]):###if all entries are equal the first entry is chosen by argmax
         greedy = np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB'], p=[.23, .23, .23, .23, .08])
     else:
@@ -95,11 +97,12 @@ def act(self, game_state: dict) -> str:
         greedy=ACTIONS[greedy_ind]
     
     #print(w)
-    #print(np.array([q_hat(S,a,w) for a in ACTIONS]))
+    #print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
+    #print("B", w)
     #print(greedy)
           
     # todo Exploration vs exploitation
-    epsilon = 0.01
+    epsilon = 0.1
     
     if self.train:
         #self.logger.debug("Choosing action purely at random.")
@@ -181,34 +184,38 @@ def state_to_features(game_state: dict) -> np.array:
                 reachable+=1
     features.append(reachable)
     """
+
+    """
      ###coins above
     above=0
     for coin in coins:
         if coin[0]!=0:
             if coin[1]<player[1]:
                 above+=1
-    features.append(above)
+    features.append(above/9)
      ###coins beneath
     ben=0
     for coin in coins:
         if coin[0]!=0:
             if coin[1]>player[1]:
                 ben+=1
-    features.append(ben)
+    features.append(ben/9)
      ###coins right
     right=0
     for coin in coins:
         if coin[0]!=0:
             if coin[0]>player[0]:
                 right+=1
-    features.append(right)
+    features.append(right/9)
      ###coins left
     left=0
     for coin in coins:
         if coin[0]!=0:
             if coin[0]<player[0]:
                 left+=1
-    features.append(left)
+    features.append(left/9)
+    """
+
     """
     ### find directly reachable coins
     within_one=0
@@ -226,13 +233,28 @@ def state_to_features(game_state: dict) -> np.array:
     features.append(nextcoin)
     """
     ###define continous potential but avoid 1/r with r->0
+    dis=[]
     diag = 20 #20 is next int for diag of playboard
-    if coins== None: #if there are no coins to collect, we don't want to be confused
+    try:
+        coins[0]
+    except:
+        print(game_state['coins'])
+        print(coins)
+    if (coins == None) or (coins == []): #if there are no coins to collect, we don't want to be confused
         nextcoin=0
     else:
-        p = np.full_like(coins,player)
-        nextcoin = (np.min(np.linalg.norm(np.asarray(player)-np.asarray(coins),axis=1)))
-    inv_dis = diag-nextcoin ##>0
+        for i in range(len(coins)):
+            if coins[i][0]!=0:
+                dis.append(np.linalg.norm(np.asarray(player)-np.asarray(coins[i])))
+            else:
+                dis.append(20)
+        nextcoin=np.min(np.array(dis))
+    #inv_dis = diag-nextcoin ##>0
+
+    if nextcoin==0:
+        inv_dis=2
+    else:
+        inv_dis = 1/nextcoin #<=1 and >0
     features.append(inv_dis)
     
     ### collect how many bombs are currently safe
@@ -247,10 +269,12 @@ def state_to_features(game_state: dict) -> np.array:
     
     for feature in features:
         channels.append(feature)
+    """
     for i in range(len(features)):
             for j in range(i):
                     channels.append(features[j]*features[i])
     channels.append(1)
+    """
     # concatenate them as a feature tensor (they must have the same shape), ...
     stacked_channels = np.stack(channels)
     # and return them as a vector
