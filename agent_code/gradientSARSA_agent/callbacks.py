@@ -25,7 +25,7 @@ def setup(self):
     if not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
-        self.model = np.full(37,0.1)
+        self.model = np.full(22,0.1)
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -87,11 +87,16 @@ def act(self, game_state: dict) -> str:
     w=self.model
     
     #assert len(S)==len(w)
-    greedy_ind = np.argmax(np.array([q_hat(S,a,w) for a in ACTIONS]))
-    greedy=ACTIONS[greedy_ind]
-    l=[q_hat(S,a,w) for a in ACTIONS]
-    #print(w)
+    tester = np.array([q_hat(S,a,w) for a in ACTIONS])
+    if np.all(tester==tester[0]):###if all entries are equal the first entry is chosen by argmax
+        greedy = np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB'], p=[.23, .23, .23, .23, .08])
+    else:
+        greedy_ind = np.argmax(tester)
+        greedy=ACTIONS[greedy_ind]
     
+    #print(w)
+    #print(np.array([q_hat(S,a,w) for a in ACTIONS]))
+    #print(greedy)
           
     # todo Exploration vs exploitation
     epsilon = 0.01
@@ -138,13 +143,13 @@ def state_to_features(game_state: dict) -> np.array:
     l=4-len(bombs)
     for i in range(l): #get full list, with (0,0) as placeholder
         bombs.append((0,0))
-    
+    """
     if coins== None: #if there are no coins to collect, we don't want to be confused
         nextcoin=0
     else:
-        p = np.full_like(coins,player[3])
-        nextcoin = np.argmin(np.linalg.norm(p-coins,axis=1))
-    
+        p = np.full_like(coins,player)
+        nextcoin = (np.argmin(np.linalg.norm(np.asarray(player)-np.asarray(coins),axis=1)))
+    """
     #
     l2=9-len(coins)
     if l2!=9:
@@ -159,13 +164,8 @@ def state_to_features(game_state: dict) -> np.array:
         channels.append(bomb)
     """
     ###define 3 neighborhoods of the player. To maximize the chance for a coin it is helpful to maximize the number of coins inside the nh.
-    ### find directly reachable coins
-    within_one=0
-    for coin in coins:
-        if coin[0]!=0:
-            if player[0] in range(coin[0]-1,coin[0]+1) and player[1] in range(coin[1]-1,coin[1]+1):
-                within_one+=1
-    features.append(within_one)
+    
+    """
     ###find close coins
     nearby=0
     for coin in coins:
@@ -180,18 +180,19 @@ def state_to_features(game_state: dict) -> np.array:
             if np.linalg.norm(np.asarray(player)-np.asarray(coin))<=6:
                 reachable+=1
     features.append(reachable)
+    """
      ###coins above
     above=0
     for coin in coins:
         if coin[0]!=0:
-            if coin[1]>player[1]:
+            if coin[1]<player[1]:
                 above+=1
     features.append(above)
      ###coins beneath
     ben=0
     for coin in coins:
         if coin[0]!=0:
-            if coin[1]<player[1]:
+            if coin[1]>player[1]:
                 ben+=1
     features.append(ben)
      ###coins right
@@ -208,8 +209,31 @@ def state_to_features(game_state: dict) -> np.array:
             if coin[0]<player[0]:
                 left+=1
     features.append(left)
-
+    """
+    ### find directly reachable coins
+    within_one=0
+    for coin in coins:
+        if coin[0]!=0:
+            if player[0] in range(coin[0]-1,coin[0]+1) and player[1] in range(coin[1]-1,coin[1]+1):
+                within_one+=1
+    features.append(within_one)
+    ###find next-to coins
+    nextcoin=0
+    for coin in coins:
+        if coin[0]!=0:
+            if np.linalg.norm(np.asarray(player)-np.asarray(coin))<3:
+                nextcoin+=1
     features.append(nextcoin)
+    """
+    ###define continous potential but avoid 1/r with r->0
+    diag = 20 #20 is next int for diag of playboard
+    if coins== None: #if there are no coins to collect, we don't want to be confused
+        nextcoin=0
+    else:
+        p = np.full_like(coins,player)
+        nextcoin = (np.min(np.linalg.norm(np.asarray(player)-np.asarray(coins),axis=1)))
+    inv_dis = diag-nextcoin ##>0
+    features.append(inv_dis)
     
     ### collect how many bombs are currently safe
     
@@ -219,6 +243,7 @@ def state_to_features(game_state: dict) -> np.array:
             if (player[0] not in range(bombs[i][0]-3,bombs[i][0]+3)) and (player[1] not in range(bombs[i][1]-3,bombs[i][1]+3)):
                 safe_bombs+=1
     features.append(safe_bombs)
+    
     
     for feature in features:
         channels.append(feature)

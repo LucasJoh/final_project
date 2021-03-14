@@ -98,7 +98,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
                 if (S_prime[0] in range(S_prime[i*2]-3,S_prime[i*2]+3)) or (S_prime[1] in range(S_prime[(i*2)+1]-3,S_prime[(i*2)+1]+3)):
                     events.append(THREATEN_BY_ONE)
         """
-        for i in range(new_features[8]):
+        #print(new_features[:6])
+        for i in range(int(new_features[5])):
             events.append(SAFE_BOMB)
         #if threat==1:
         #    events.append(THREATEN_BY_ONE)
@@ -126,29 +127,33 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             if np.linalg.norm(old_p-old_c)>np.linalg.norm(new_p-new_c):
                 events.append(GETTING_CLOSER)
         """
-        if new_features[1]>old_features[1]:
+        if new_features[4]>old_features[4]:
             events.append(GETTING_CLOSER)
+            
 
-        if new_features[0]>old_features[0]:
-            events.append(NEXT_TO_COIN)
+        #if new_features[0]>old_features[0]:
+        #    events.append(NEXT_TO_COIN)
 
         #if agent takes a step away of available coins or an enemy is faster
         #by reward it is guranteed that the reward for taking the coin and therefore out of range is higher than the loss for not taking it
-        if new_features[2]<old_features[2]:
+        if (new_features[2]<old_features[2]):
             events.append(LOOSING_COIN)
 
         #agents moves towards the right direction?
 
-        if A=="LEFT" and new_features[6]>new_features[5]:
-            events.append(GOOD_STEP)
-        if A=="RIGHT" and new_features[6]<new_features[5]:
-            events.append(GOOD_STEP)
-        if A=="UP" and new_features[3]>new_features[4]:
-            events.append(GOOD_STEP)
-        if A=="DOWN" and new_features[3]<new_features[4]:
-            events.append(GOOD_STEP)
-        if new_features[7]<old_features[7]:
-            events.append(CLOSER_TO_COIN)
+        if e.INVALID_ACTION not in events:
+            if A=="LEFT" and new_features[3]>new_features[2]:
+                events.append(GOOD_STEP)
+            if A=="RIGHT" and new_features[3]<new_features[2]:
+                events.append(GOOD_STEP)
+            if A=="UP" and new_features[0]>new_features[1]:
+                events.append(GOOD_STEP)
+            if A=="DOWN" and new_features[0]<new_features[1]:
+                events.append(GOOD_STEP)
+            #if new_features[7]>old_features[7]:
+            #    events.append(CLOSER_TO_COIN)
+            #if new_features[7]<old_features[7]:
+            #    events.append(LOOSING_COIN)
         gamma=0.9
         alpha=0.05
         
@@ -164,8 +169,12 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         
         action=range(1,len(ACTIONS)+1)
         epsilon=0.05
-        greedy_ind = np.argmax(np.array([q_hat(S,a,w) for a in ACTIONS]))
-        greedy=ACTIONS[greedy_ind]
+        tester = np.array([q_hat(S,a,w) for a in ACTIONS])
+        if np.all(tester==tester[0]):###if all entries are equal the first entry is chosen by argmax
+            greedy = np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB'], p=[.23, .23, .23, .23, .08])
+        else:
+            greedy_ind = np.argmax(tester)
+            greedy=ACTIONS[greedy_ind]
         A_prime=np.random.choice((greedy,np.random.choice(ACTIONS,1)),1,[1-epsilon,epsilon])
         
         
@@ -174,8 +183,10 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         #print(q_hat(S_prime,A_prime,w))
         #print(q_hat(S,A,w))
         #print(reward_from_events(self,events))
+        #print(new_features[0:9])
         #print(gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))
         #print(alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w)))
+        #print(w)
         #print(alpha*(reward_from_events(self,events)-gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad_q_hat(S,A,w))
 
 
@@ -209,8 +220,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     #A=np.where(last_action==ACTIONS)[0]+1
     A=last_action
         
-    gamma=0.9
-    alpha=0.3
+    gamma=0.8
+    alpha=0.4
 
     """    
     if (self.model).all() ==None:
@@ -223,7 +234,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     w=self.model
         
     action=range(1,len(ACTIONS)+1)
-    epsilon=0.05
+    epsilon=0.1
     greedy_ind = np.argmax(np.array([q_hat(S,a,w) for a in ACTIONS]))
     
     
@@ -247,10 +258,10 @@ def reward_from_events(self, events: List[str]) -> int:
     game_rewards = {
         e.COIN_COLLECTED: 100,
         #e.KILLED_OPPONENT: 5,
-        e.MOVED_DOWN: -.0,
-        e.MOVED_LEFT: -.0,
-        e.MOVED_RIGHT: -.0,
-        e.MOVED_UP: -.0,
+        e.MOVED_DOWN: -.1,
+        e.MOVED_LEFT: -.1,
+        e.MOVED_RIGHT: -.1,
+        e.MOVED_UP: -.1,
         e.WAITED: -.1,
         e.INVALID_ACTION: -10,
         e.KILLED_SELF: -10,
@@ -260,7 +271,7 @@ def reward_from_events(self, events: List[str]) -> int:
         CLOSER_TO_COIN: 5,
         NEXT_TO_COIN: 10,
         LOOSING_COIN: -2,
-        GOOD_STEP: 0.2,
+        GOOD_STEP: 0.3,
         SAFE_BOMB: 0.5,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
