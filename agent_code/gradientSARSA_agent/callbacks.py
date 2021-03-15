@@ -98,7 +98,7 @@ def act(self, game_state: dict) -> str:
     
     #print(w)
     #print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
-    #print("B", w)
+    #print("w", w)
     #print(greedy)
           
     # todo Exploration vs exploitation
@@ -114,6 +114,27 @@ def act(self, game_state: dict) -> str:
     
     return greedy
 
+
+def in_range(player, bomb=None):
+    if bomb != None:
+        
+        ###bomb range
+        bomb_range=[[bomb[0],bomb[1]],]
+
+        for i in range(1,4):
+            bomb_range.append([bomb[0]+i,bomb[1]])
+            bomb_range.append([bomb[0]-i,bomb[1]])
+            bomb_range.append([bomb[0],bomb[1]+i])
+            bomb_range.append([bomb[0],bomb[1]-i])
+        #print(player,bomb_range)
+        assert len(bomb_range)==13
+        bombs = np.array(bomb_range)
+        p = np.asarray(player)
+        in_range = [np.all(b==p) for b in bombs]
+        #if not np.any(np.array(in_range)==True):
+        #    print(player,bomb_range,in_range)
+
+        return np.any(np.array(in_range)==True)
 
 def state_to_features(game_state: dict) -> np.array:
     """
@@ -235,11 +256,13 @@ def state_to_features(game_state: dict) -> np.array:
     ###define continous potential but avoid 1/r with r->0
     dis=[]
     diag = 20 #20 is next int for diag of playboard
+    """
     try:
         coins[0]
     except:
-        print(game_state['coins'])
-        print(coins)
+        #print(game_state['coins'])
+        #print(coins)
+    """
     if (coins == None) or (coins == []): #if there are no coins to collect, we don't want to be confused
         nextcoin=0
     else:
@@ -258,12 +281,14 @@ def state_to_features(game_state: dict) -> np.array:
     features.append(inv_dis)
     
     ### collect how many bombs are currently safe
-    
+    #print(not in_range(player,bombs[0]))
     safe_bombs=0
     for i in range(len(bombs)):
         if bombs[i][0]!=0:
-            if (player[0] not in range(bombs[i][0]-3,bombs[i][0]+3)) and (player[1] not in range(bombs[i][1]-3,bombs[i][1]+3)):
+            #print(player[0],range(bombs[i][0]-3,bombs[i][0]+3),player[1],range(bombs[i][1]-3,bombs[i][1]+3))
+            if not in_range(player,bombs[i]):
                 safe_bombs+=1
+                
     features.append(safe_bombs)
     
     
