@@ -44,7 +44,8 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
-
+    if game_state["step"] == 1:
+        return "RIGHT"
     find_threats(self, game_state)
     
     new_game_state, state= game_state_transformer(self, game_state)
