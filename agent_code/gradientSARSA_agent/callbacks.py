@@ -25,7 +25,7 @@ def setup(self):
     if not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
-        self.model = np.full(2,0.1)
+        self.model = np.full(3,0.1)
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -57,7 +57,7 @@ def q_hat(S,A,w):
     #print(p[3], A,S_temp['self'][3])
     X=state_to_features(S_temp)
     #print(X[:7])
-    #print("X:",X)
+    #print("X:",A,X)
     #print("w:",w)
     #print(S_temp,S)
     #print(len(X))
@@ -97,9 +97,9 @@ def act(self, game_state: dict) -> str:
         greedy=ACTIONS[greedy_ind]
     
     #print(w)
-    #print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
-    #print("w", w)
-    #print(greedy)
+    print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
+    print("w", w)
+    print(greedy)
           
     # todo Exploration vs exploitation
     epsilon = 0.1
@@ -115,8 +115,13 @@ def act(self, game_state: dict) -> str:
     return greedy
 
 
-def in_range(player, bomb=None):
-    if bomb != None:
+def in_range(bomb, player=None):
+    """
+    evaluates where a bomb is possibly threatening. 
+    If a players and a bombs position are given it returns whether the player is in range of an exploding bomb.
+    If player is not given, it returns an array with all threatend spaces.
+    """
+    if player != None:
         
         ###bomb range
         bomb_range=[[bomb[0],bomb[1]],]
@@ -135,6 +140,19 @@ def in_range(player, bomb=None):
         #    print(player,bomb_range,in_range)
 
         return np.any(np.array(in_range)==True)
+    else:
+        ###bomb range
+        bomb_range=[[bomb[0],bomb[1]],]
+
+        for i in range(1,4):
+            bomb_range.append([bomb[0]+i,bomb[1]])
+            bomb_range.append([bomb[0]-i,bomb[1]])
+            bomb_range.append([bomb[0],bomb[1]+i])
+            bomb_range.append([bomb[0],bomb[1]-i])
+        #print(player,bomb_range)
+        assert len(bomb_range)==13
+        bombs = np.array(bomb_range)
+        return bombs
 
 def state_to_features(game_state: dict) -> np.array:
     """
@@ -290,6 +308,44 @@ def state_to_features(game_state: dict) -> np.array:
                 safe_bombs+=1
                 
     features.append(safe_bombs)
+
+    ###look for next safe_space
+    field = game_state['field']
+
+    ###max 4*13=52 iterations, probably won't take to long
+    for bomb in game_state['bombs']:
+        if bomb[1]<4:
+            bomb_range = in_range(bomb[0])
+            for s in bomb_range:
+                if np.all(s<=16) and np.all(s>=0):
+                    if field[s[0],s[1]]!=-1:
+                        field[s[0],s[1]]=2
+
+    explosions = game_state['explosion_map']
+    expl = np.argwhere(explosions!=0)
+    for e in expl:
+        
+        if field[e[0],e[1]]!=-1:
+            field[e[0],e[1]]=3
+
+    free_s = np.argwhere(field==0)
+    pos = np.full_like(free_s,np.asarray(player))
+    diss = np.linalg.norm(pos-free_s,axis=1)
+    closest_spot = np.min(diss)
+    
+    if closest_spot==0:
+        inv_close=2
+    elif game_state['bombs']==[]:
+        inv_close=0
+    else:
+        inv_close=1/closest_spot
+
+    features.append(inv_close)
+
+    
+
+
+
     
     
     for feature in features:

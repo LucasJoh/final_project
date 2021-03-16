@@ -274,6 +274,7 @@ def reward_from_events(self, events: List[str]) -> int:
         e.INVALID_ACTION: -1,
         e.KILLED_SELF: -10,
         e.GOT_KILLED: -5,
+        e.CRATE_DESTROYED: 0.2,
         THREATEN_BY_ONE: -0.1,
         GETTING_CLOSER: 3,
         CLOSER_TO_COIN: 5,
