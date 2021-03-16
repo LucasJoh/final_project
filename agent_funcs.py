@@ -133,12 +133,17 @@ def threat_transformer(self, game_state):
     bombs = game_state["bombs"]
 
     
-    
+    bomb_threats = []
     own_pos = game_state['self'][3]
     for i in range(len(bombs)):
         bombs[i] = list(bombs[i])
         bombs[i][0] = (bombs[i][0][0] - own_pos[0], bombs[i][0][1] - own_pos[1])
+
+        if abs(bombs[i][0][0]) <= 3 and abs(bombs[i][0][1]) <= 3:
+            bomb_threats.append(bombs[i])
         
+    if bomb_threats == []:
+        return None
     bombstate = None
 
     # 
