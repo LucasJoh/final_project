@@ -24,6 +24,7 @@ LOOSING_COIN = "LOOSING_COIN"
 GOOD_STEP = "GOOD_STEP"
 SAFE_BOMB = "SAFE_BOMB"
 CLOSER_TO_COIN = "CLOSER_TO_COIN"
+WELL_PLACED_BOMB = "WELL_PLACED_BOMB"
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -139,6 +140,9 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         #by reward it is guranteed that the reward for taking the coin and therefore out of range is higher than the loss for not taking it
         if (new_features[0]<old_features[0]):
             events.append(LOOSING_COIN)
+
+        if old_features[3]>=1 and self_action=="BOMB":
+            events.append(WELL_PLACED_BOMB)
 
         #agents moves towards the right direction?
         """
@@ -282,6 +286,7 @@ def reward_from_events(self, events: List[str]) -> int:
         LOOSING_COIN: -2,
         GOOD_STEP: 0.3,
         SAFE_BOMB: 0.5,
+        WELL_PLACED_BOMB: 1,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
     reward_sum = 0

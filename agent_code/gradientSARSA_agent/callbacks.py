@@ -25,7 +25,7 @@ def setup(self):
     if not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
-        self.model = np.full(3,0.1)
+        self.model = np.full(4,0.1)
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -35,6 +35,7 @@ def setup(self):
 #initial guess
 def q_hat(S,A,w):
     #print(w)
+    #print(S['bombs'])
     S_temp=S.copy()
     p = S_temp['self']
     ###before applying new step, test whether step is possible
@@ -59,7 +60,7 @@ def q_hat(S,A,w):
     #print(X[:7])
     #print("X:",A,X)
     #print("w:",w)
-    #print(S_temp,S)
+    #print(S_temp['bombs'],S['bombs'])
     #print(len(X))
     assert len(w)==len(X)
     #print("q:",w@X)
@@ -89,7 +90,11 @@ def act(self, game_state: dict) -> str:
     w=self.model
     
     #assert len(S)==len(w)
-    tester = np.array([np.abs(q_hat(S,a,w)) for a in ACTIONS])
+    #print("Vorher",S['bombs'])
+    tester = np.array([q_hat(S,a,w) for a in ACTIONS])
+    #print("A1",np.array([q_hat(S,a,w) for a in ACTIONS]))
+    #print(tester)
+    #print("Nacher:",S['bombs'])
     if np.all(tester==tester[0]):###if all entries are equal the first entry is chosen by argmax
         greedy = np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB'], p=[.23, .23, .23, .23, .08])
     else:
@@ -97,9 +102,10 @@ def act(self, game_state: dict) -> str:
         greedy=ACTIONS[greedy_ind]
     
     #print(w)
-    print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
-    print("w", w)
-    print(greedy)
+    #print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
+    #print("w", w)
+    #print(greedy)
+    #print(tester, np.argmax(tester))
           
     # todo Exploration vs exploitation
     epsilon = 0.1
@@ -307,7 +313,8 @@ def state_to_features(game_state: dict) -> np.array:
             if not in_range(player,bombs[i]):
                 safe_bombs+=1
                 
-    features.append(safe_bombs)
+    #features.append(safe_bombs)
+    features.append(0)
 
     ###look for next safe_space
     field = game_state['field']
@@ -333,9 +340,10 @@ def state_to_features(game_state: dict) -> np.array:
     diss = np.linalg.norm(pos-free_s,axis=1)
     closest_spot = np.min(diss)
     
-    if closest_spot==0:
+    if closest_spot==0 and game_state['bombs']!=[]:
         inv_close=2
     elif game_state['bombs']==[]:
+        
         inv_close=0
     else:
         inv_close=1/closest_spot
@@ -343,7 +351,21 @@ def state_to_features(game_state: dict) -> np.array:
     features.append(inv_close)
 
     
+    ###count possible destroyable crates
+    reachable_crates=0
+    reachable = in_range(player)
+    for r in reachable:
+        if np.all(r<=16) and np.all(r>=0):
+            if game_state['field'][r[0],r[1]]==1:
+                reachable_crates+=1
 
+    #print(game_state['self'][2])
+    if reachable_crates==0 or game_state['self'][2]==False:
+        crates=0
+    else:
+        crates=reachable_crates/13
+    
+    features.append(crates)
 
 
     
