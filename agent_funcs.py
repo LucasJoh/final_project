@@ -131,7 +131,7 @@ def setup_coords(self):
 def threat_transformer(self, game_state):
 
     bombs = game_state["bombs"]
-
+    dist = []
     
     bomb_threats = []
     own_pos = game_state['self'][3]
@@ -144,30 +144,18 @@ def threat_transformer(self, game_state):
         
     if bomb_threats == []:
         return None
-    bombstate = None
+    wallstate = None
 
-    # 
-    # check for case:
-    #     #p
-    # 
+  
     if game_state['field'][own_pos[1]][own_pos[0] - 1] == -1:
+
 
         # 
         # check for case:
         #     #p#
         # 
         if game_state['field'][own_pos[1]][own_pos[0] + 1] == -1:
-
-            # 
-            # check for case:
-            #      #
-            #     #p#
-            # 
-            if game_state['field'][own_pos[1] - 1][own_pos[0]] == -1:
-                bombstate = 'lru'
-
-            else:
-                bombstate = 'lr'
+            wallstate = 'lr'
 
             # 
             # check for case:
@@ -175,13 +163,13 @@ def threat_transformer(self, game_state):
             #     #p
             # 
         elif game_state['field'][own_pos[1] - 1][own_pos[0]] == -1:
-            bombstate = "lu"
+            wallstate = "lu"
         # 
         # check for case:
         #     #p 
         # 
         else:
-            bombstate = 'l'
+            wallstate = 'l'
     
     # 
     # check for case:
@@ -198,7 +186,7 @@ def threat_transformer(self, game_state):
         #     #
         # 
         if game_state['field'][own_pos[1] + 1][own_pos[0]] == -1:
-            bombstate = 'ud'
+            wallstate = 'ud'
         
         #
         # case:
@@ -206,12 +194,12 @@ def threat_transformer(self, game_state):
         #   p
         # 
         else:
-            bombstate = "u"
+            wallstate = "u"
     else:
-        bombstate = "n"
+        wallstate = "n"
 
     # No state was found this should not happen
-    if bombstate == None:
+    if wallstate == None:
         raise Exception("No state was detected! WTF how is that possible FML!")
 
     if game_state["bombs"] != []:
