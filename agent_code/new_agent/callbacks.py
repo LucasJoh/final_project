@@ -55,6 +55,8 @@ def act(self, game_state: dict) -> str:
 
     new_game_state, state= game_state_transformer(self, game_state)
 
+    bombstate = threat_transformer(self, game_state)
+    self.logger.info(f"{bombstate}")
     
     ownpos = new_game_state["self"][3]
     coin, min = get_nearest_coin_position(ownpos, new_game_state["coins"])
