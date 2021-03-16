@@ -3,6 +3,7 @@ import pickle
 import random
 
 import numpy as np
+import copy
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
@@ -36,7 +37,7 @@ def setup(self):
 def q_hat(S,A,w):
     #print(w)
     #print(S['bombs'])
-    S_temp=S.copy()
+    S_temp=copy.deepcopy(S) ###avoid bug caused by shallow-copy (.copy())
     p = S_temp['self']
     ###before applying new step, test whether step is possible
     if p[3][0]%2==1:
@@ -55,10 +56,11 @@ def q_hat(S,A,w):
                 S_temp['self']=(p[0],p[1],p[2],(p[3][0]-1,p[3][1]))
     if A=='BOMB':
         S_temp['bombs'].append((p[3],4))
+        S_temp['self']=(p[0],p[1],False,p[3]) ##avoid bug, that after dropping a bomb the agent is able to drop another
     #print(p[3], A,S_temp['self'][3])
     X=state_to_features(S_temp)
     #print(X[:7])
-    #print("X:",A,X)
+    print("X:",A,X)
     #print("w:",w)
     #print(S_temp['bombs'],S['bombs'])
     #print(len(X))
@@ -93,7 +95,6 @@ def act(self, game_state: dict) -> str:
     #print("Vorher",S['bombs'])
     tester = np.array([q_hat(S,a,w) for a in ACTIONS])
     #print("A1",np.array([q_hat(S,a,w) for a in ACTIONS]))
-    #print(tester)
     #print("Nacher:",S['bombs'])
     if np.all(tester==tester[0]):###if all entries are equal the first entry is chosen by argmax
         greedy = np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB'], p=[.23, .23, .23, .23, .08])
@@ -102,9 +103,9 @@ def act(self, game_state: dict) -> str:
         greedy=ACTIONS[greedy_ind]
     
     #print(w)
-    #print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
-    #print("w", w)
-    #print(greedy)
+    print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
+    print("w", w)
+    print(greedy)
     #print(tester, np.argmax(tester))
           
     # todo Exploration vs exploitation
@@ -321,7 +322,7 @@ def state_to_features(game_state: dict) -> np.array:
 
     ###max 4*13=52 iterations, probably won't take to long
     for bomb in game_state['bombs']:
-        if bomb[1]<4:
+        if bomb[1]<=4:
             bomb_range = in_range(bomb[0])
             for s in bomb_range:
                 if np.all(s<=16) and np.all(s>=0):
@@ -341,6 +342,7 @@ def state_to_features(game_state: dict) -> np.array:
     closest_spot = np.min(diss)
     
     if closest_spot==0 and game_state['bombs']!=[]:
+        
         inv_close=2
     elif game_state['bombs']==[]:
         
