@@ -72,65 +72,78 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
-    reward = 0
-    if self_action in ["LEFT", "RIGHT", "UP", "DOWN"]:
+    if old_game_state != None:
 
         # transforming old game state and new game state to rotated game states
         old_game_state, oldstate = game_state_transformer(self, old_game_state)
         new_game_state, new_state = game_state_transformer(self, new_game_state)
 
-        self.logger.debug(f"{self_action}")
-        if self_action in ["LEFT", "RIGHT", "UP", "DOWN"]:
-                    if oldstate == "ru":
-                        self_action = self.order_ld[self_action]
-                    if oldstate == "rd":
-                        self_action = self.order_rd[self_action]
-                    if oldstate == "ld":
-                        self_action = self.order_ru[self_action]
-
-        self.logger.debug(f"{oldstate}")
-        self.logger.debug(f"{self_action}")
-
-        # getting oldposition and new position on rotated board
+        # getting oldposition and new position on rotated board   
         oldpos = old_game_state['self'][3]
         newpos = new_game_state['self'][3]
 
-        # get nearest coin positionb and distance to it on rotated board
-        oldcoin, oldmin = get_nearest_coin_position(oldpos, old_game_state["coins"])
-        newcoin, newmin = get_nearest_coin_position(newpos, new_game_state["coins"])
+        reward = 0
+        if self_action in ["LEFT", "RIGHT", "UP", "DOWN"]:
+            self.logger.debug(f"{self_action}")
 
-        # if there is a coin on the board reward the bot according to rule set
-        if oldcoin != None:
-            self.oldcoin = oldcoin
+            if self_action in ["LEFT", "RIGHT", "UP", "DOWN"]:
+                        if oldstate == "ru":
+                            self_action = self.order_ld[self_action]
+                        if oldstate == "rd":
+                            self_action = self.order_rd[self_action]
+                        if oldstate == "ld":
+                            self_action = self.order_ru[self_action]
 
-            # punish not lowering distance
-            if newmin == oldmin:
-                reward += -0.5
+            self.logger.debug(f"{oldstate}")
+            self.logger.debug(f"{self_action}")
 
-            #reward lowering distance
-            elif newmin < oldmin:
-                reward += 10/(old_game_state['step'])
+            
 
-            # punish increasing distance
-            elif newmin > oldmin:
-                reward += -1 
+            # get nearest coin positionb and distance to it on rotated board
+            oldcoin, oldmin = get_nearest_coin_position(oldpos, old_game_state["coins"])
+            newcoin, newmin = get_nearest_coin_position(newpos, new_game_state["coins"])
 
-            # if reward < 0:
-            #     reward = 40* reward
+            # if there is a coin on the board reward the bot according to rule set
+            if oldcoin != None and newcoin != None:
+                self.oldcoin = oldcoin
 
-            # punish visiting tile twice (to try and minimize getting stuck between two tiles)
-            if self.preoldpos != None:
-                if newpos == self.preoldpos:
-                    reward += -2
+                # punish not lowering distance
+                if newmin == oldmin:
+                    reward += -0.5
 
-            self.preoldpos = oldpos
-            reward += reward_from_events(self, events)
+                #reward lowering distance
+                elif newmin < oldmin:
+                    reward += 10/(old_game_state['step'])
 
-            self.logger.info(f"Awarded {reward}")
-            self.logger.info(f"mins {oldmin}, {newmin}")
-            self.logger.info(f"position {oldpos}")
-            self.coin_states_actions[str(oldpos[0]) + str(oldpos[1]) + str(oldcoin[0]) + str(oldcoin[1]) + self_action] += reward
+                # punish increasing distance
+                elif newmin > oldmin:
+                    reward += -1 
 
+                # if reward < 0:
+                #     reward = 40* reward
+
+                # punish visiting tile twice (to try and minimize getting stuck between two tiles)
+                if self.preoldpos != None:
+                    if newpos == self.preoldpos:
+                        reward += -2
+
+                reward += reward_from_events(self, events)
+
+                self.logger.info(f"Awarded {reward}")
+                self.logger.info(f"mins {oldmin}, {newmin}")
+                self.logger.info(f"position {oldpos}")
+                self.coin_states_actions[str(oldpos[0]) + str(oldpos[1]) + str(oldcoin[0]) + str(oldcoin[1]) + self_action] += reward
+            
+            elif oldcoin != None:
+                
+                reward += reward_from_events(self, events)
+
+                self.logger.info(f"Awarded {reward}")
+                self.logger.info(f"mins {oldmin}, {newmin}")
+                self.logger.info(f"position {oldpos}")
+                self.coin_states_actions[str(oldpos[0]) + str(oldpos[1]) + str(oldcoin[0]) + str(oldcoin[1]) + self_action] += reward
+
+        self.preoldpos = oldpos
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -164,7 +177,7 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 10,
+        e.COIN_COLLECTED: 11,
         e.KILLED_OPPONENT: 5,
         e.KILLED_SELF: -100,
         e.GOT_KILLED: -5,
