@@ -14,5 +14,7 @@ def act(self, game_state: dict):
     coin, min = get_nearest_coin_position(ownpos, new_game_state["coins"])
     self.logger.debug(f"{coin}, {min}, {ownpos}")
     bombstate = threat_transformer(self, new_game_state)
+    self.logger.debug(f"{game_state}")
+    self.logger.info(f"{bombstate}")
     self.logger.info('Pick action according to pressed key')
     return game_state['user_input']
