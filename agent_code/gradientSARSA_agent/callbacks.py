@@ -177,6 +177,7 @@ def is_in(point, point_list, index=False):
         if element[0]==point[0] and element[1]==point[1]:
             IN=True
             index.append(i)
+    #print(IN)
     if index==False:
         return IN
     else:
@@ -185,46 +186,60 @@ def is_in(point, point_list, index=False):
         else:
             return False
 
-def find_path(starting_point, end_point, field):
+def find_path(starting_point, end_point, field, maxiter=200):
     """
     Inserting two arrays with starting and end point and the underlaying field as an array.
-    Gives back the amount of steps that have to be taken
+    Gives back the amount of steps that have to be taken, False if there is no path or True if starting point equals end point.
     """
     path=[starting_point,]
     rounds = [0,]
-    while not is_in([end_point[0],end_point[1]],path) or len(path)!=0:
-        print(path)
+    #print(starting_point,end_point)
+    if starting_point[0]==end_point[0] and starting_point[1]==end_point[1]:
+        return True
+    while (not is_in([end_point[0],end_point[1]],path)) and (len(path)<maxiter and len(path)>0):
+        #print(path,rounds)
         point = path[-1]
         steps = [[point[0]+1,point[1]],[point[0]-1,point[1]],[point[0],point[1]+1],[point[0],point[1]-1]]
         rank = rounds[-1]
         if rank<4:
+            steplen = 1
             while len(steps)!=0:
                 arr_steps = np.array(steps)
                 end = np.full_like(arr_steps,end_point)
                 diff = np.linalg.norm(arr_steps-end, axis=1)
                 for i in range(rank): # the rank-th best step
+                    
                     min_ind = np.argmin(diff)
-                    diff = np.delete(diff,min_ind)
+                    diff[min_ind] = 200
+                    
                 min_ind = np.argmin(diff)
                 best_step = steps[min_ind]
+                #print(best_step)
                 if field[best_step[0],best_step[1]]==0: #step is possible
                     path.append(best_step)
                     rounds.append(0)
+                    steplen = len(steps)
                     steps=[]
                 else:
                     steps.remove(best_step)
             #if we are trapped on a circle, remove the circle and give sign to take another step
             if is_in(path[-1],path[:-1]):
-                remove = is_in(path[-1],path,index=True)[0]
-                del path[remove+1:]
-                del rounds[remove+1:]
-                rounds[-1]+=1
+                if steplen == 1 or rounds[-1]==4:
+                    remove = is_in(path[-1],path,index=True)[0]
+                    del path[-2:]
+                    del rounds[-2:]
+                    rounds[-1]+=1
+                else:
+                    del path[-1]
+                    del rounds[-1]
+                    rounds[-1]+=1
         else:
             path=[]
-        #print(path)
+        #print(path,rounds)
+    
     if path==False:
         return False
-    elif is_in(starting_point,[end_point,]):
+    if starting_point[0]==end_point[0] and starting_point[1]==end_point[1]:
         return 0
     else:
         return len(path)
@@ -374,7 +389,7 @@ def state_to_features(game_state: dict) -> np.array:
                 else:
                     dis.append(path_it)
             else:
-                dis.append(200)
+                dis.append(201)
         nextcoin=min(dis)
         
     #inv_dis = diag-nextcoin ##>0
@@ -400,33 +415,47 @@ def state_to_features(game_state: dict) -> np.array:
     ###look for next safe_space
     field = np.copy(game_state['field'])
 
+    
+    closest_spot = 200
     ###max 4*13=52 iterations, probably won't take to long
-    for bomb in game_state['bombs']:
-        if bomb[1]<=4:
-            bomb_range = in_range(bomb[0])
-            for s in bomb_range:
-                if np.all(s<=16) and np.all(s>=0):
-                    if field[s[0],s[1]]!=-1:
-                        field[s[0],s[1]]=2
+    if game_state['bombs']!=[]:
+        for bomb in game_state['bombs']:
+            if bomb[1]<=4:
+                bomb_range = in_range(bomb[0])
+                for s in bomb_range:
+                    if np.all(s<=16) and np.all(s>=0):
+                        if field[s[0],s[1]]!=-1:
+                            field[s[0],s[1]]=2
 
-    explosions = game_state['explosion_map']
-    expl = np.argwhere(explosions!=0)
-    for e in expl:
-        
-        if field[e[0],e[1]]!=-1:
-            field[e[0],e[1]]=3
+        explosions = game_state['explosion_map']
+        expl = np.argwhere(explosions!=0)
+        for e in expl:
+            
+            if field[e[0],e[1]]!=-1:
+                field[e[0],e[1]]=3
 
-    free_s = np.argwhere(field==0)
-    diss=[]
-    for s in free_s:
-    #pos = np.full_like(free_s,np.asarray(player))
-        path_iter = find_path(np.asarray(player),s, game_state['field'])               
-        if path_iter == False:
-            diss.append(200)
-        else:
-            diss.append(path_iter)
-    #diss = np.linalg.norm(pos-free_s,axis=1)
-    closest_spot = min(diss)
+        free_s = np.argwhere(field==0)
+        pos = np.full_like(free_s,np.asarray(player))
+        dises = np.linalg.norm(pos-free_s,axis=1)
+        test_s = []
+        for i in range(len(dises)):
+            if dises[i]<=6:
+                test_s.append(free_s[i])
+        diss=[]
+        max_iter=1000
+        for s in test_s:
+            path_iter = find_path(np.asarray(player),s, game_state['field'],max_iter)            
+            if path_iter == False:
+                diss.append(200)
+                max_iter=200
+            elif path_iter == True:
+                diss.append(0)
+                max_iter=0
+            else:
+                diss.append(path_iter)
+                max_iter=path_iter
+        #print(diss)
+        closest_spot = min(diss)
     
     if closest_spot==0 and game_state['bombs']!=[]:
         
