@@ -61,7 +61,7 @@ def q_hat(S,A,w):
     #print(p[3], A,S_temp['self'][3])
     X=state_to_features(S_temp)
     #print(X[:7])
-    #print("X:",A,X)
+    print("X:",A,X)
     #print("w:",w)
     #print(S_temp['bombs'],S['bombs'])
     #print(len(X))
@@ -106,9 +106,9 @@ def act(self, game_state: dict) -> str:
         greedy=ACTIONS[greedy_ind]
     
     #print(w)
-    #print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
-    #print("w", w)
-    #print(greedy)
+    print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
+    print("w", w)
+    print(greedy)
     #print(tester, np.argmax(tester))
           
     # todo Exploration vs exploitation
@@ -494,15 +494,23 @@ def state_to_features(game_state: dict) -> np.array:
 
     ####next_crate
 
-    field=game_state['field']
+    field=np.copy(game_state['field'])
     crate_ind = np.argwhere(field==1)
     player = np.asarray(game_state['self'][3])
     if len(crate_ind)!=0:
         p = np.full_like(crate_ind,player)
         diff=np.linalg.norm(p-crate_ind,axis=1)
-        min_dis = np.min(diff)
+        mini = np.argmin(diff)
+        #print(player,crate_ind[mini])
+        cim = crate_ind[mini]
+        field[cim[0],cim[1]]=0
+        min_dis = find_path(player,crate_ind[mini], field)
+        field[cim[0],cim[1]]=1
+        #print(crate_ind[mini])
         #print(player,crate_ind,diff)
-        assert min_dis != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
+        assert min_dis != False #obviously a crate has to be reachable
+        assert min_dis != True #by definition one can't stand on a crate spot. Thus diff can't be 0.
+        min_dis-=1 #to get min_dis we virtually removed the crate, but now the crate is back. Therefore it is reached one step earlier.
         if field[player[0],player[1]]==0: #don't walk in danger
             invert_dis = 1/min_dis
         else:
