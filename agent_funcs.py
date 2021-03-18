@@ -1,8 +1,6 @@
 import numpy as np
 
 import copy
-
-
 #turn board
 def game_state_transformer(self, game_state):
     new_game_state = copy.deepcopy(game_state)
@@ -145,18 +143,25 @@ def threat_transformer(self, game_state):
         
     if bomb_threats == []:
         return None
-    wallstate = None
 
-  
+    bombstate = None
+
+    bomb_threats.sort()
+    self.logger.debug(f"{bomb_threats}")
+
     if game_state['field'][own_pos[1]][own_pos[0] - 1] == -1:
-
+        
 
         # 
         # check for case:
         #     #p#
         # 
         if game_state['field'][own_pos[1]][own_pos[0] + 1] == -1:
-            wallstate = 'lr'
+            bombstate = 'lr'
+
+            for bomb in bomb_threats:
+                if bomb[0][0] == 0:
+                    bombstate = bombstate + str(bomb[0][0]) + str(bomb[0][1]) + str(bomb[1])
 
             # 
             # check for case:
@@ -164,14 +169,25 @@ def threat_transformer(self, game_state):
             #     #p
             # 
         elif game_state['field'][own_pos[1] - 1][own_pos[0]] == -1:
-            wallstate = "lu"
+            bombstate = "lu"
+
+            for bomb in bomb_threats:
+                if bomb[0][1] == 0:
+                    bombstate = bombstate + str(bomb[0][0]) + str(bomb[0][1]) + str(bomb[1])
+                elif bomb[0][0] == 0:
+                    bombstate = bombstate + str(bomb[0][0]) + str(bomb[0][1]) + str(bomb[1])
+
         # 
         # check for case:
         #     #p 
         # 
         else:
-            wallstate = 'l'
-    
+            bombstate = 'l'
+            for bomb in bomb_threats:
+                if bomb[0][1] == 0:
+                    bombstate = bombstate + str(bomb[0][0]) + str(bomb[0][1]) + str(bomb[1])                    
+                elif bomb[0][0] == 0:
+                    bombstate = bombstate + str(bomb[0][0]) + str(bomb[0][1]) + str(bomb[1])    
     # 
     # check for case:
     #     #
@@ -179,7 +195,7 @@ def threat_transformer(self, game_state):
     # 
 
     elif game_state['field'][own_pos[1] - 1][own_pos[0]] == -1:
-
+        
         # 
         # check for case:
         #     #
@@ -187,20 +203,34 @@ def threat_transformer(self, game_state):
         #     #
         # 
         if game_state['field'][own_pos[1] + 1][own_pos[0]] == -1:
-            wallstate = 'ud'
-        
+            bombstate = 'ud'
+
+            for bomb in bomb_threats:
+                if bomb[0][0] == 0:
+                    bombstate = bombstate + str(bomb[0][0]) + str(bomb[0][1]) + str(bomb[1])        
         #
         # case:
         #   #
         #   p
         # 
         else:
-            wallstate = "u"
-    else:
-        wallstate = "n"
+            bombstate = "u"
 
+            for bomb in bomb_threats:
+                if bomb[0][1] == 0:
+                    bombstate = bombstate + str(bomb[0][0]) + str(bomb[0][1]) + str(bomb[1])                    
+                elif bomb[0][0] == 0:
+                    bombstate = bombstate + str(bomb[0][0]) + str(bomb[0][1]) + str(bomb[1])
+    else:
+        bombstate = "n"
+
+        for bomb in bomb_threats:
+                if bomb[0][1] == 0:
+                    bombstate = bombstate + str(bomb[0][0]) + str(bomb[0][1]) + str(bomb[1])                    
+                elif bomb[0][0] == 0:
+                    bombstate = bombstate + str(bomb[0][0]) + str(bomb[0][1]) + str(bomb[1])
     # No state was found this should not happen
-    if wallstate == None:
+    if bombstate == None:
         raise Exception("No state was detected! WTF how is that possible FML!")
 
     if game_state["bombs"] != []:
@@ -215,24 +245,25 @@ def threat_transformer(self, game_state):
                 bombs.append(j)
                 dist.append(abs(game_state["bombs"][j][0][0] - own_pos[0]) + abs(game_state["bombs"][j][0][1] - own_pos[1]))
     
+    self.logger.debug(f"{bombstate}")
     return bombstate
         
-def find_threats(self, game_state):
+# def find_threats(self, game_state):
     
-    own_pos = game_state['self'][3]
-    bombs = []
-    dist = []
-    danger = False
-    if game_state["bombs"] != []:
+#     own_pos = game_state['self'][3]
+#     bombs = []
+#     dist = []
+#     danger = False
+#     if game_state["bombs"] != []:
 
-        for j in range(len(game_state["bombs"])):
+#         for j in range(len(game_state["bombs"])):
 
-            if abs(game_state["bombs"][j][0][0] - own_pos[0]) < 4 and abs(game_state["bombs"][j][0][1] - own_pos[1]) < 4:
-                self.logger.debug(f"Theres a bomb")
-                bombs.append(j)
-                dist.append(abs(game_state["bombs"][j][0][0] - own_pos[0]) + abs(game_state["bombs"][j][0][1] - own_pos[1]))
-                danger = True
+#             if abs(game_state["bombs"][j][0][0] - own_pos[0]) < 4 and abs(game_state["bombs"][j][0][1] - own_pos[1]) < 4:
+#                 self.logger.debug(f"Theres a bomb")
+#                 bombs.append(j)
+#                 dist.append(abs(game_state["bombs"][j][0][0] - own_pos[0]) + abs(game_state["bombs"][j][0][1] - own_pos[1]))
+#                 danger = True
 
 
-    return bombs, dist, danger
+#     return bombs, dist, danger
 

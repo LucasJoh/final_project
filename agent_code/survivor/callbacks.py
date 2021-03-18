@@ -35,6 +35,17 @@ def setup(self):
     #setting up coordinates for rotating the board
     setup_coords(self)
 
+    try:
+        with open("seen_bombstates.pt", "rb") as file:
+            self.seen_bombstates = pickle.load(file)
+        
+        with open("bombstate_action.pt", "rb") as file:
+            self.bombstate_action = pickle.load(file)
+    except:
+        self.seen_bombstates = []
+        self.bombstate_action = {}
+
+        
 def act(self, game_state: dict) -> str:
     """
     Your agent should parse the input, think, and take a decision.
@@ -44,12 +55,20 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
-    if game_state["step"] == 1:
-        return "RIGHT"
-    find_threats(self, game_state)
     
-    new_game_state, state= game_state_transformer(self, game_state)
-    find_threats(self, new_game_state)
+    
+    
+    new_game_state, state = game_state_transformer(self, game_state)
+
+    bombstate = threat_transformer(self, game_state)
+
+    if bombstate not in self.seen_bombstates:
+        self.seen_bombstates.append(bombstate)
+
+        for action in ACTIONS:
+            self.bombstate_action[bombstate + str(action)] = 1
+    else:
+        
     
     ownpos = new_game_state["self"][3]
     coin, min = get_nearest_coin_position(ownpos, new_game_state["coins"])
