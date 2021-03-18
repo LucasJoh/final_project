@@ -34,12 +34,17 @@ def setup(self):
 
     #setting up coordinates for rotating the board
     setup_coords(self)
+
     try:
         with open("seen_bombstates.pt", "rb") as file:
             self.seen_bombstates = pickle.load(file)
         
         with open("bombstate_action.pt", "rb") as file:
             self.bombstate_action = pickle.load(file)
+    except:
+        self.seen_bombstates = []
+        self.bombstate_action = {}
+
         
 def act(self, game_state: dict) -> str:
     """
@@ -53,7 +58,7 @@ def act(self, game_state: dict) -> str:
     
     
     
-    new_game_state, state= game_state_transformer(self, game_state)
+    new_game_state, state = game_state_transformer(self, game_state)
 
     bombstate = threat_transformer(self, game_state)
 
@@ -61,9 +66,9 @@ def act(self, game_state: dict) -> str:
         self.seen_bombstates.append(bombstate)
 
         for action in ACTIONS:
-            self.bombstate_action[bombstate + str(action)] = 
+            self.bombstate_action[bombstate + str(action)] = 1
     else:
-        test = 1
+        
     
     ownpos = new_game_state["self"][3]
     coin, min = get_nearest_coin_position(ownpos, new_game_state["coins"])

@@ -88,7 +88,6 @@ def act(self, game_state: dict) -> str:
         # 80%: walk in any direction. 10% wait. 10% bomb.
         return np.random.choice(["LEFT", "RIGHT", "UP", "DOWN"])
 
-
     ## EXPLORATION
     random_prob = 0.1
     if self.train and random.random() < random_prob:
