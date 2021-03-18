@@ -62,14 +62,53 @@ def act(self, game_state: dict) -> str:
 
     bombstate = threat_transformer(self, game_state)
 
+    if bombstate == None:
+        return np.random.choice(ACTIONS)
+
     if bombstate not in self.seen_bombstates:
         self.seen_bombstates.append(bombstate)
 
         for action in ACTIONS:
             self.bombstate_action[bombstate + str(action)] = 1
-    else:
         
+        self.last_bombstate = bombstate
+
+        return np.random.choice(ACTIONS)
+    else:
+        """
+        if coin != None:
+        state_id = str(ownpos[0]) + str(ownpos[1]) + str(coin[0]) + str(coin[1])
+        actions = ["WAIT"]
+        val = -1000
+
+        for action in ["LEFT", "RIGHT", "UP", "DOWN"]:
+            if self.coin_states_actions[state_id + action] == val:
+                actions.append(action)
+
+            elif self.coin_states_actions[state_id + action] > val:
+                val = self.coin_states_actions[state_id + action]
+                actions = [action]
+        
+        if actions == ["WAIT"]:
+            return np.random.choice(["LEFT", "RIGHT", "UP", "DOWN"])
+        elif len(action) > 1:
+            a = np.random.choice(actions)
+        else:
+            a = actions[0]
     
+    else:
+        self.logger.info("Choosing action purely at random.")
+        # 80%: walk in any direction. 10% wait. 10% bomb.
+        return np.random.choice(["LEFT", "RIGHT", "UP", "DOWN"])
+
+    """
+    val = self.bombstate_action[bombstate + "WAIT"]
+    
+    for action in ACTIONS:
+
+        self.bombstate_action[bombstate + str(action)]
+
+        
     ownpos = new_game_state["self"][3]
     coin, min = get_nearest_coin_position(ownpos, new_game_state["coins"])
 
