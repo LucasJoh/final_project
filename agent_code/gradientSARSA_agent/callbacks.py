@@ -55,8 +55,9 @@ def q_hat(S,A,w):
         if f[p[3][0]-1,p[3][1]]==0:
             S_temp['self']=(p[0],p[1],p[2],(p[3][0]-1,p[3][1]))
     if A=='BOMB':
-        S_temp['bombs'].append((p[3],4))
-        S_temp['self']=(p[0],p[1],False,p[3]) ##avoid bug, that after dropping a bomb the agent is able to drop another
+        if p[2]==True:
+            S_temp['bombs'].append((p[3],4))
+            S_temp['self']=(p[0],p[1],False,p[3]) ##avoid bug, that after dropping a bomb the agent is able to drop another
     #print(p[3], A,S_temp['self'][3])
     X=state_to_features(S_temp)
     #print(X[:7])
@@ -162,6 +163,76 @@ def in_range(bomb, player=None):
         assert len(bomb_range)==13
         bombs = np.array(bomb_range)
         return bombs
+
+def is_in(point, point_list, index=False):
+    """
+    short auxillary function to check whether a 2-dim coordinate is in a list of 2-dim coordinates.
+    In default it simply gives back a boolean value.
+    With index=True, it gives back a list of indices where the point was found or False if the point is not contained.
+    """
+    IN = False
+    index = []
+    for i in range(len(point_list)):
+        element=point_list[i]
+        if element[0]==point[0] and element[1]==point[1]:
+            IN=True
+            index.append(i)
+    if index==False:
+        return IN
+    else:
+        if IN==True:
+            return index
+        else:
+            return False
+
+def find_path(starting_point, end_point, field):
+    """
+    Inserting two arrays with starting and end point and the underlaying field as an array.
+    Gives back the amount of steps that have to be taken
+    """
+    path=[starting_point,]
+    rounds = [0,]
+    while not is_in([end_point[0],end_point[1]],path) or len(path)!=0:
+        print(path)
+        point = path[-1]
+        steps = [[point[0]+1,point[1]],[point[0]-1,point[1]],[point[0],point[1]+1],[point[0],point[1]-1]]
+        rank = rounds[-1]
+        if rank<4:
+            while len(steps)!=0:
+                arr_steps = np.array(steps)
+                end = np.full_like(arr_steps,end_point)
+                diff = np.linalg.norm(arr_steps-end, axis=1)
+                for i in range(rank): # the rank-th best step
+                    min_ind = np.argmin(diff)
+                    diff = np.delete(diff,min_ind)
+                min_ind = np.argmin(diff)
+                best_step = steps[min_ind]
+                if field[best_step[0],best_step[1]]==0: #step is possible
+                    path.append(best_step)
+                    rounds.append(0)
+                    steps=[]
+                else:
+                    steps.remove(best_step)
+            #if we are trapped on a circle, remove the circle and give sign to take another step
+            if is_in(path[-1],path[:-1]):
+                remove = is_in(path[-1],path,index=True)[0]
+                del path[remove+1:]
+                del rounds[remove+1:]
+                rounds[-1]+=1
+        else:
+            path=[]
+        #print(path)
+    if path==False:
+        return False
+    elif is_in(starting_point,[end_point,]):
+        return 0
+    else:
+        return len(path)
+
+
+
+        
+
 
 def state_to_features(game_state: dict) -> np.array:
     """
@@ -295,10 +366,17 @@ def state_to_features(game_state: dict) -> np.array:
     else:
         for i in range(len(coins)):
             if coins[i][0]!=0:
-                dis.append(np.linalg.norm(np.asarray(player)-np.asarray(coins[i])))
+                #dis.append(np.linalg.norm(np.asarray(player)-np.asarray(coins[i])))
+                path_it = find_path(np.asarray(player),np.asarray(coins[i]), game_state['field'])
+                
+                if path_it == False:
+                    dis.append(200)
+                else:
+                    dis.append(path_it)
             else:
-                dis.append(20)
-        nextcoin=np.min(np.array(dis))
+                dis.append(200)
+        nextcoin=min(dis)
+        
     #inv_dis = diag-nextcoin ##>0
 
     if nextcoin==0:
@@ -339,13 +417,22 @@ def state_to_features(game_state: dict) -> np.array:
             field[e[0],e[1]]=3
 
     free_s = np.argwhere(field==0)
-    pos = np.full_like(free_s,np.asarray(player))
-    diss = np.linalg.norm(pos-free_s,axis=1)
-    closest_spot = np.min(diss)
+    diss=[]
+    for s in free_s:
+    #pos = np.full_like(free_s,np.asarray(player))
+        path_iter = find_path(np.asarray(player),s, game_state['field'])               
+        if path_iter == False:
+            diss.append(200)
+        else:
+            diss.append(path_iter)
+    #diss = np.linalg.norm(pos-free_s,axis=1)
+    closest_spot = min(diss)
     
     if closest_spot==0 and game_state['bombs']!=[]:
         
         inv_close=2
+    elif (player,4) in game_state['bombs']:
+        inv_close = 0
     elif game_state['bombs']==[]:
         
         inv_close=0
@@ -381,13 +468,19 @@ def state_to_features(game_state: dict) -> np.array:
     field=game_state['field']
     crate_ind = np.argwhere(field==1)
     player = np.asarray(game_state['self'][3])
-    p = np.full_like(crate_ind,player)
-    diff=np.linalg.norm(p-crate_ind,axis=1)
-    min_dis = np.min(diff)
-    #print(player,crate_ind,diff)
-    assert min_dis != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
-    invert_dis = 1/min_dis
-    features.append(invert_dis)
+    if len(crate_ind)!=0:
+        p = np.full_like(crate_ind,player)
+        diff=np.linalg.norm(p-crate_ind,axis=1)
+        min_dis = np.min(diff)
+        #print(player,crate_ind,diff)
+        assert min_dis != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
+        if field[player[0],player[1]]==0: #don't walk in danger
+            invert_dis = 1/min_dis
+        else:
+            invert_dis = 0
+        features.append(invert_dis)
+    else:
+        features.append(0)
 
 
 
