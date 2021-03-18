@@ -26,7 +26,7 @@ def setup(self):
     if not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
-        self.model = np.full(4,0.1)
+        self.model = np.full(5,0.1)
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -39,28 +39,28 @@ def q_hat(S,A,w):
     #print(S['bombs'])
     S_temp=copy.deepcopy(S) ###avoid bug caused by shallow-copy (.copy())
     p = S_temp['self']
+    f = S_temp['field']
+
     ###before applying new step, test whether step is possible
-    if p[3][0]%2==1:
-        if A=='UP':
-            if p[3][1]>=1:
-                S_temp['self']=(p[0],p[1],p[2],(p[3][0],p[3][1]-1))
-        if A=='DOWN':
-            if p[3][1]<=14:
-                S_temp['self']=(p[0],p[1],p[2],(p[3][0],p[3][1]+1))
-    if p[3][1]%2==1:
-        if A=='RIGHT':
-            if p[3][0]<=14:
-                S_temp['self']=(p[0],p[1],p[2],(p[3][0]+1,p[3][1]))
-        if A=='LEFT':
-            if p[3][0]>=2:
-                S_temp['self']=(p[0],p[1],p[2],(p[3][0]-1,p[3][1]))
+    if A=='UP':
+        if f[p[3][0],p[3][1]-1]==0:
+            S_temp['self']=(p[0],p[1],p[2],(p[3][0],p[3][1]-1))
+    if A=='DOWN':
+        if f[p[3][0],p[3][1]+1]==0:
+            S_temp['self']=(p[0],p[1],p[2],(p[3][0],p[3][1]+1))
+    if A=='RIGHT':
+        if f[p[3][0]+1,p[3][1]]==0:
+            S_temp['self']=(p[0],p[1],p[2],(p[3][0]+1,p[3][1]))
+    if A=='LEFT':
+        if f[p[3][0]-1,p[3][1]]==0:
+            S_temp['self']=(p[0],p[1],p[2],(p[3][0]-1,p[3][1]))
     if A=='BOMB':
         S_temp['bombs'].append((p[3],4))
         S_temp['self']=(p[0],p[1],False,p[3]) ##avoid bug, that after dropping a bomb the agent is able to drop another
     #print(p[3], A,S_temp['self'][3])
     X=state_to_features(S_temp)
     #print(X[:7])
-    print("X:",A,X)
+    #print("X:",A,X)
     #print("w:",w)
     #print(S_temp['bombs'],S['bombs'])
     #print(len(X))
@@ -93,19 +93,21 @@ def act(self, game_state: dict) -> str:
     
     #assert len(S)==len(w)
     #print("Vorher",S['bombs'])
-    tester = np.array([q_hat(S,a,w) for a in ACTIONS])
+    tester = np.array([np.abs(q_hat(S,a,w)) for a in ACTIONS])
     #print("A1",np.array([q_hat(S,a,w) for a in ACTIONS]))
     #print("Nacher:",S['bombs'])
     if np.all(tester==tester[0]):###if all entries are equal the first entry is chosen by argmax
         greedy = np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB'], p=[.23, .23, .23, .23, .08])
+    if np.all(tester[:4]==tester[0]) and tester[0]>tester[4] and tester[0]>tester[5]:
+        greedy =np. random.choice(['RIGHT','LEFT','UP','DOWN'])
     else:
         greedy_ind = np.argmax(tester)
         greedy=ACTIONS[greedy_ind]
     
     #print(w)
-    print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
-    print("w", w)
-    print(greedy)
+    #print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
+    #print("w", w)
+    #print(greedy)
     #print(tester, np.argmax(tester))
           
     # todo Exploration vs exploitation
@@ -318,7 +320,7 @@ def state_to_features(game_state: dict) -> np.array:
     features.append(0)
 
     ###look for next safe_space
-    field = game_state['field']
+    field = np.copy(game_state['field'])
 
     ###max 4*13=52 iterations, probably won't take to long
     for bomb in game_state['bombs']:
@@ -353,21 +355,40 @@ def state_to_features(game_state: dict) -> np.array:
     features.append(inv_close)
 
     
-    ###count possible destroyable crates
-    reachable_crates=0
-    reachable = in_range(player)
-    for r in reachable:
-        if np.all(r<=16) and np.all(r>=0):
-            if game_state['field'][r[0],r[1]]==1:
-                reachable_crates+=1
-
-    #print(game_state['self'][2])
-    if reachable_crates==0 or game_state['self'][2]==False:
-        crates=0
-    else:
-        crates=reachable_crates/13
+    ###count destroyable crates by a dropped bomb
     
+    if (player,4) in game_state['bombs']:
+        #print(player,game_state['bombs'],np.transpose(game_state['field']))
+        reachable_crates=0
+        reachable = in_range(player)
+        for r in reachable:
+            if np.all(r<=16) and np.all(r>=0):
+                if game_state['field'][r[0],r[1]]==1:
+                    reachable_crates+=1
+        #print(reachable_crates)
+        #print(game_state['self'][2])
+        if reachable_crates==0:
+            crates=0
+        else:
+            crates=reachable_crates/13
+    else:
+        crates=0
     features.append(crates)
+
+
+    ####next_crate
+
+    field=game_state['field']
+    crate_ind = np.argwhere(field==1)
+    player = np.asarray(game_state['self'][3])
+    p = np.full_like(crate_ind,player)
+    diff=np.linalg.norm(p-crate_ind,axis=1)
+    min_dis = np.min(diff)
+    #print(player,crate_ind,diff)
+    assert min_dis != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
+    invert_dis = 1/min_dis
+    features.append(invert_dis)
+
 
 
     

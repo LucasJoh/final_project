@@ -141,8 +141,10 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         if (new_features[0]<old_features[0]):
             events.append(LOOSING_COIN)
 
-        if old_features[3]>=1 and self_action=="BOMB":
+        
+        if old_features[3]>=(2/13) and self_action=="BOMB":
             events.append(WELL_PLACED_BOMB)
+            
 
         #agents moves towards the right direction?
         """
@@ -176,7 +178,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         
         action=range(1,len(ACTIONS)+1)
         epsilon=0.05
-        tester = np.array([np.abs(q_hat(S,a,w)) for a in ACTIONS])
+        tester = np.array([(q_hat(S,a,w)) for a in ACTIONS])
         if np.all(tester==tester[0]):###if all entries are equal the first entry is chosen by argmax
             greedy = np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB'], p=[.23, .23, .23, .23, .08])
         else:
@@ -276,14 +278,17 @@ def reward_from_events(self, events: List[str]) -> int:
         e.MOVED_UP: -.1,
         e.WAITED: -.1,
         e.INVALID_ACTION: -1,
-        e.KILLED_SELF: -10,
-        e.GOT_KILLED: -5,
+        e.KILLED_SELF: -1,
+        e.GOT_KILLED: -0.5,
         e.CRATE_DESTROYED: 0.2,
+        e.COIN_FOUND: 5,
+        e.BOMB_DROPPED: 0.5,
+        e.BOMB_EXPLODED: 0.0,
         THREATEN_BY_ONE: -0.1,
         GETTING_CLOSER: 3,
         CLOSER_TO_COIN: 5,
         NEXT_TO_COIN: 10,
-        LOOSING_COIN: -2,
+        LOOSING_COIN: -0.2,
         GOOD_STEP: 0.3,
         SAFE_BOMB: 0.5,
         WELL_PLACED_BOMB: 1,
