@@ -106,7 +106,7 @@ def get_nearest_coin_position(own_pos, coin_pos):
     
 def get_nearest_bomb_position(own_pos, bomb_pos):
     min = 1000
-    bomb = (0,0)
+    bomb = (100,100)
 
     for b in bomb_pos:
         dist = abs(b[0][0] - own_pos[0]) + abs(b[0][1] - own_pos[1])
@@ -115,7 +115,7 @@ def get_nearest_bomb_position(own_pos, bomb_pos):
             min = dist
             bomb = b[0]
 
-    if bomb == (0,0):
+    if bomb == (100,100):
         return None, None
     else:
         return bomb, min

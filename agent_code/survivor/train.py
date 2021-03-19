@@ -65,7 +65,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     bombstate = self.last_bombstate
     rewards = 0
 
-    if bombstate != None:
+    if bombstate != None and self_action != None:
         
         bombstate_action = bombstate + self_action
 
@@ -76,7 +76,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.bombstate_action_log.append(bombstate_action)
 
         last_bombstate, last_threats = threat_transformer(self, old_game_state)
-        new_bombstate, new_threats = threat_transformer(self, old_game_state)
+        new_bombstate, new_threats = threat_transformer(self, new_game_state)
 
         if e.INVALID_ACTION in events:
             rewards = -10
@@ -88,7 +88,9 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
             old_pos = old_game_state['self'][3]
             new_pos = new_game_state['self'][3]
-            old_bomb, old_dist = get_nearest_bomb_position(old_pos, old_game_state)
+
+            old_bomb, old_dist = get_nearest_bomb_position(old_pos, old_game_state['bombs'])
+            self.logger.debug(f"{old_bomb}")
             new_dist = abs(old_bomb[0] - new_pos[0]) + abs(old_bomb[1] - new_pos[1])
 
             if new_dist > old_dist:
@@ -131,7 +133,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     
     elif e.KILLED_SELF in events:
         for state in self.last_three_bombstates:
-            self.bombstate_action[state] += -2
+            if state != None:
+                self.bombstate_action[state] += -2
 
     elif e.GOT_KILLED in events:
         for state in self.last_three_bombstates:
