@@ -103,6 +103,22 @@ def get_nearest_coin_position(own_pos, coin_pos):
         return None, None
     else:
         return coin, min
+    
+def get_nearest_bomb_position(own_pos, bomb_pos):
+    min = 1000
+    bomb = (0,0)
+
+    for b in bomb_pos:
+        dist = abs(b[0][0] - own_pos[0]) + abs(b[0][1] - own_pos[1])
+
+        if dist < min:
+            min = dist
+            bomb = b[0]
+
+    if bomb == (0,0):
+        return None, None
+    else:
+        return bomb, min
 
 def setup_coords(self):
     # coordinate setup
@@ -142,7 +158,7 @@ def threat_transformer(self, game_state):
             bomb_threats.append(bombs[i])
         
     if bomb_threats == []:
-        return None
+        return None, None
 
     bombstate = None
 
@@ -246,7 +262,7 @@ def threat_transformer(self, game_state):
                 dist.append(abs(game_state["bombs"][j][0][0] - own_pos[0]) + abs(game_state["bombs"][j][0][1] - own_pos[1]))
     
     self.logger.debug(f"{bombstate}")
-    return bombstate
+    return bombstate, len(bomb_threats)
         
 # def find_threats(self, game_state):
     

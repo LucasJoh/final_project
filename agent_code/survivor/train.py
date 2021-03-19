@@ -6,6 +6,9 @@ from typing import List
 import events as e
 from .callbacks import state_to_features
 
+from agent_funcs import *
+
+
 # This is only an example!
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
@@ -26,9 +29,17 @@ def setup_training(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    # Example: Setup an array that will note transition tuples
-    # (s, a, r, s')
-    self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
+    try:
+        with open("seen_bombstates.pt", "rb") as file:
+            self.seen_bombstates = pickle.load(file)
+        
+        with open("bombstate_action.pt", "rb") as file:
+            self.bombstate_action = pickle.load(file)
+    except:
+        self.seen_bombstates = []
+        self.bombstate_action = {}
+    self.last_three_bombstates = [None, None, None]
+    self.bombstate_action_log = []
 
 
 def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_state: dict, events: List[str]):
@@ -48,14 +59,57 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     :param new_game_state: The state the agent is in now.
     :param events: The events that occurred when going from  `old_game_state` to `new_game_state`
     """
-    self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
-    # Idea: Add your own events to hand out rewards
-    if ...:
-        events.append(PLACEHOLDER_EVENT)
+    
+            
+    bombstate = self.last_bombstate
+    rewards = 0
 
-    # state_to_features is defined in callbacks.py
-    self.transitions.append(Transition(state_to_features(old_game_state), self_action, state_to_features(new_game_state), reward_from_events(self, events)))
+    if bombstate != None:
+        
+        bombstate_action = bombstate + self_action
+
+        self.last_three_bombstates.pop()
+
+        self.last_three_bombstates.append(bombstate_action)
+
+        self.bombstate_action_log.append(bombstate_action)
+
+        last_bombstate, last_threats = threat_transformer(self, old_game_state)
+        new_bombstate, new_threats = threat_transformer(self, old_game_state)
+
+        if e.INVALID_ACTION in events:
+            rewards = -10
+            self.bombstate_action[bombstate_action] += rewards
+            return None
+        
+
+        if last_threats != 0:
+
+            old_pos = old_game_state['self'][3]
+            new_pos = new_game_state['self'][3]
+            old_bomb, old_dist = get_nearest_bomb_position(old_pos, old_game_state)
+            new_dist = abs(old_bomb[0] - new_pos[0]) + abs(old_bomb[1] - new_pos[1])
+
+            if new_dist > old_dist:
+                rewards += 1
+            elif new_dist <= old_dist:
+                rewards += -1
+
+            if new_threats < last_threats:
+                rewards += 1
+            
+            elif new_threats >= last_threats:
+                rewards += -1
+
+        rewards += reward_from_events(self, events)
+
+        self.bombstate_action[bombstate_action] += rewards
+
+
+    
+
+
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -70,12 +124,25 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     :param self: The same object that is passed to all of your callbacks.
     """
-    self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
-    self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
+    
+    if e.SURVIVED_ROUND in events:
+        for state in self.bombstate_action_log:
+            self.bombstate_action[state] += 2
+    
+    elif e.KILLED_SELF in events:
+        for state in self.last_three_bombstates:
+            self.bombstate_action[state] += -2
 
-    # Store the model
-    with open("my-saved-model.pt", "wb") as file:
-        pickle.dump(self.model, file)
+    elif e.GOT_KILLED in events:
+        for state in self.last_three_bombstates:
+            self.bombstate_action[state] += -1
+    
+    
+    with open("bombstate_action.pt", "wb") as file:
+        pickle.dump(self.bombstate_action, file)
+
+    with open("seen_bombstates.pt", "wb") as file:
+        pickle.dump(self.seen_bombstates, file)
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -86,9 +153,12 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 1,
         e.KILLED_OPPONENT: 5,
-        PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
+        e.KILLED_SELF: -100,
+        e.GOT_KILLED: -50,
+        e.SURVIVED_ROUND: 5,
+        e.INVALID_ACTION: -5,
+        e.SURVIVED_ROUND: 10
     }
     reward_sum = 0
     for event in events:

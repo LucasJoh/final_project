@@ -23,18 +23,25 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    if self.train or not os.path.isfile("my-saved-model.pt"):
-        self.logger.info("Setting up model from scratch.")
-        weights = np.random.rand(len(ACTIONS))
-        self.model = weights / weights.sum()
-    else:
-        self.logger.info("Loading model from saved state.")
-        with open("my-saved-model.pt", "rb") as file:
-            self.model = pickle.load(file)
+    if not self.train:
+        if not os.path.isfile("bombstate_action.pt") or not os.path.isfile("seen_bombstates.pt"):
+            raise Exception("No Files found for bombstates")
+        else:
+
+            self.logger.info("Loading model from saved state.")
+            with open("seen_bombstates.pt", "rb") as file:
+                self.seen_bombstates = pickle.load(file)
+            
+            with open("bombstate_action.pt", "rb") as file:
+                self.bombstate_action = pickle.load(file)
 
     #setting up coordinates for rotating the board
     setup_coords(self)
 
+    self.seen_bombstates = []
+    self.bombstate_action = {}
+    self.last_bombstate = None
+    
     try:
         with open("seen_bombstates.pt", "rb") as file:
             self.seen_bombstates = pickle.load(file)
@@ -60,10 +67,13 @@ def act(self, game_state: dict) -> str:
     
     new_game_state, state = game_state_transformer(self, game_state)
 
-    bombstate = threat_transformer(self, game_state)
+    bombstate = threat_transformer(self, game_state)[0]
 
     if bombstate == None:
-        return np.random.choice(ACTIONS)
+        # if theres no bomb bomb
+        return "BOMB"
+
+    self.logger.debug(f"{bombstate}")
 
     if bombstate not in self.seen_bombstates:
         self.seen_bombstates.append(bombstate)
@@ -73,37 +83,34 @@ def act(self, game_state: dict) -> str:
         
         self.last_bombstate = bombstate
 
+        self.logger.info("Choosing action purely at random.")
         return np.random.choice(ACTIONS)
     else:
-        """
-        if coin != None:
-        state_id = str(ownpos[0]) + str(ownpos[1]) + str(coin[0]) + str(coin[1])
-        actions = ["WAIT"]
-        val = -1000
-
-        for action in ["LEFT", "RIGHT", "UP", "DOWN"]:
-            if self.coin_states_actions[state_id + action] == val:
-                actions.append(action)
-
-            elif self.coin_states_actions[state_id + action] > val:
-                val = self.coin_states_actions[state_id + action]
-                actions = [action]
-        
-        if actions == ["WAIT"]:
-            return np.random.choice(["LEFT", "RIGHT", "UP", "DOWN"])
-        elif len(action) > 1:
-            a = np.random.choice(actions)
+        a = ["WAIT"]
+        val = self.bombstate_action[bombstate + "WAIT"]
+        for action in ACTIONS:
+            if self.bombstate_action[bombstate + action] > val:
+                a = [action]
+            elif self.bombstate_action[bombstate + action] == val:
+                a.append(action)
+            
+        if len(a) == 1:
+            return a[0]
         else:
-            a = actions[0]
-    
-    else:
-        self.logger.info("Choosing action purely at random.")
-        # 80%: walk in any direction. 10% wait. 10% bomb.
-        return np.random.choice(["LEFT", "RIGHT", "UP", "DOWN"])
+            if a[0] != "WAIT":
+                return np.random.choice(a)
+            else:
+                del a[0]
+                if len(a) == 1:
+                    return a[0]
+                else:
+                    return np.random.choice(a)
 
-    """
-    val = self.bombstate_action[bombstate + "WAIT"]
+        
     
+    
+
+
     for action in ACTIONS:
 
         self.bombstate_action[bombstate + str(action)]
