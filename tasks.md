@@ -1,0 +1,12 @@
+# Further tasks
+- [x] fix bugs with trapped crates (Lucas)
+- [ ] fix problems with agent dropping a bomb too fast (Lucas)
+- [ ] overthink next_crate feature: maybe augment number of features (Lucas)
+- [ ] otimize the find_path function in callbacks.py (Laurin)
+- [ ] find a good place to add the board rotation:maybe before q_hat/in q_hat before state_to_features/in state_to_features (Laurin)
+- [ ] find best algorithm to learn (Simon)
+- [ ] find a good way to handle learning hyperparameter (Simon)
+- [ ] add helpful events
+- [ ] add new features concerning 1v1 against other agents
+- [ ] find bugs in existing code
+- [ ] design graphic for logo and bomb
