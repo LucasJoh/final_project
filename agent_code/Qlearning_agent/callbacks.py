@@ -26,7 +26,7 @@ def setup(self):
     if not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
-        self.model = np.full(5,0.1)
+        self.model = np.concatenate((np.full(11,0.1),np.full(5,0.01)))
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -88,12 +88,11 @@ def act(self, game_state: dict) -> str:
     """
     
     S=game_state
-    action = range(1,len(ACTIONS)+1)
     
     w=self.model
     
     ###find greedy action (maximizes q_hat for given S and w)
-    tester = np.array([np.abs(q_hat(S,a,w)) for a in ACTIONS])
+    tester = np.array([(q_hat(S,a,w)) for a in ACTIONS])
     if np.all(tester==tester[0]):###if all entries are equal the first entry is chosen by argmax
         greedy = np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB'], p=[.23, .23, .23, .23, .08])
     #if all step-entries have equal value and value of bomb is less, do random step
@@ -312,7 +311,7 @@ def state_to_features(game_state: dict) -> np.array:
     dis=[]
     
     if (coins == None) or (coins == []): #if there are no coins to collect, we don't want to be confused
-        nextcoin=0
+        dis=[200 for i in range(9)]
     else:
         for i in range(len(coins)):
             if coins[i][0]!=0:
@@ -325,17 +324,17 @@ def state_to_features(game_state: dict) -> np.array:
                     dis.append(path_it)
             else:
                 dis.append(201)
-        nextcoin=min(dis)
-
-    if nextcoin==0:
-        inv_dis=2
-    else:
-        inv_dis = 1/nextcoin #<=1 and >0
-    features.append(inv_dis)
+        #nextcoin=min(dis)
+    for nextcoin in dis:
+        if nextcoin==0:
+            inv_dis=2
+        else:
+            inv_dis = 1/nextcoin #<=1 and >0
+        features.append(inv_dis)
     
 
     ###Remark: I will remove that soon
-    features.append(0)
+    #features.append(0)
 
 
     ###Feature 2: look for next safe_space
@@ -344,9 +343,9 @@ def state_to_features(game_state: dict) -> np.array:
 
     closest_spot = 200
 
-    ###max 4*13=52 iterations, probably won't take to long
+    #max 4*13=52 iterations, probably won't take to long
     
-    if game_state['bombs']!=[]: #only if bombs are active on the field
+    if game_state['bombs']!=[] and  not ((player,4) in game_state['bombs']): #only if bombs are active on the field
 
         #determine all spaces that are currently threatend by a bomb and insert entry 2 in our copy
         for bomb in game_state['bombs']:
@@ -370,7 +369,7 @@ def state_to_features(game_state: dict) -> np.array:
         pos = np.full_like(free_s,np.asarray(player))
         dises = np.linalg.norm(pos-free_s,axis=1)
         test_s = []
-
+        """
         #just consider near spaces (otherwise it would take to long)
         for i in range(len(dises)):
             if dises[i]<=6:
@@ -390,6 +389,8 @@ def state_to_features(game_state: dict) -> np.array:
                 max_iter=path_iter #we are only interessted in better choice, therefore we can speed calculation up
         
         closest_spot = min(diss)
+        """
+        closest_spot = np.min(dises)
     
     if closest_spot==0 and game_state['bombs']!=[]:
         inv_close=2
@@ -433,35 +434,42 @@ def state_to_features(game_state: dict) -> np.array:
     crate_ind = np.argwhere(field==1) #find all crates on the field
     player = np.asarray(game_state['self'][3])
 
-    if len(crate_ind)!=0: #if there are no crates we can't find any distances
+    mini=False
+    
+    for i in range(5):
+        
+        #and game_state['self'][2]==True
+        if len(crate_ind)!=0 and np.all(crate_ind[:,0]!=-20): #if there are no crates we can't find any distances
 
-        p = np.full_like(crate_ind,player)
-        diff=np.linalg.norm(p-crate_ind,axis=1)
-        mini = np.argmin(diff)
-        cim = crate_ind[mini]
+            p = np.full_like(crate_ind,player)
+            diff=np.linalg.norm(p-crate_ind,axis=1)
+            mini = np.argmin(diff)
+            cim = crate_ind[mini]
 
-        #we need to virtually remove the crate to make the find_path function work
-        field[cim[0],cim[1]]=0
-        min_dis = find_path(player,crate_ind[mini], field) #safe computation time by only calulating the euclidian closest 
-        field[cim[0],cim[1]]=1
+            #we need to virtually remove the crate to make the find_path function work
+            field[cim[0],cim[1]]=0
+            min_dis = find_path(player,crate_ind[mini], field) #safe computation time by only calulating the euclidian closest 
+            field[cim[0],cim[1]]=1
 
-        assert min_dis != True #by definition one can't stand on a crate spot. Thus diff can't be 0.
+            assert min_dis != True #by definition one can't stand on a crate spot. Thus diff can't be 0.
 
-        if min_dis==False: #the euclidian next crate is not reachable, therefore we ignore him this round
-            invert_dis = 0
+            if min_dis==False: #the euclidian next crate is not reachable, therefore we ignore him this round
+                invert_dis = 0
 
-        elif field[player[0],player[1]]==0: #don't walk in danger
+            elif field[player[0],player[1]]==0: #don't walk in danger
 
-            min_dis-=1 #to get min_dis we virtually removed the crate, but now the crate is back. Therefore it is reached one step earlier.
+                min_dis-=1 #to get min_dis we virtually removed the crate, but now the crate is back. Therefore it is reached one step earlier.
 
-            invert_dis = 1/min_dis
+                invert_dis = 1/min_dis
 
+            else:
+                invert_dis = 0
+            features.append(invert_dis)
+            
+            crate_ind[mini][0]=-20
+            
         else:
-            invert_dis = 0
-        features.append(invert_dis)
-
-    else:
-        features.append(0)
+            features.append(0)
 
     #I kept this distinction between features and channels if a feature augmentation would be neccessary at some point (Sutton, 9.5)
     for feature in features:
