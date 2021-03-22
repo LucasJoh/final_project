@@ -309,29 +309,29 @@ def state_to_features(game_state: dict) -> np.array:
     
 
     ###Feature 1: Define continous potential but avoid 1/r with r->0
-    dis=[]
+    coin_distance=[]
     
     if (coins == None) or (coins == []): #if there are no coins to collect, we don't want to be confused
-        dis=[200 for i in range(9)]
+        coin_distance=[200 for i in range(9)]
     else:
         for i in range(len(coins)):
             if coins[i][0]!=0:
-                #dis.append(np.linalg.norm(np.asarray(player)-np.asarray(coins[i])))
+                #coin_distance.append(np.linalg.norm(np.asarray(player)-np.asarray(coins[i])))
                 path_it = find_path(np.asarray(player),np.asarray(coins[i]), game_state['field'])
                 
                 if path_it == False:
-                    dis.append(200)
+                    coin_distance.append(200)
                 else:
-                    dis.append(path_it)
+                    coin_distance.append(path_it)
             else:
-                dis.append(201)
-        #nextcoin=min(dis)
-    for nextcoin in dis:
+                coin_distance.append(201)
+        #nextcoin=min(coin_distance)
+    for nextcoin in coin_distance:
         if nextcoin==0:
-            inv_dis=2
+            inverted_coin_distance=2
         else:
-            inv_dis = 1/nextcoin #<=1 and >0
-        features.append(inv_dis)
+            inverted_coin_distance = 1/nextcoin #<=1 and >0
+        features.append(inverted_coin_distance)
     
 
     ###Remark: I will remove that soon
@@ -358,9 +358,9 @@ def state_to_features(game_state: dict) -> np.array:
                             field[s[0],s[1]]=2
 
         #determine all spaces that are threatend by a remaining explosion and insert entry 3 in our copy
-        explosions = game_state['explosion_map']
-        expl = np.argwhere(explosions!=0)
-        for e in expl:
+        explosion_map = game_state['explosion_map']
+        explosions = np.argwhere(explosion_map!=0)
+        for e in explosions:
             
             if field[e[0],e[1]]!=-1:
                 field[e[0],e[1]]=3
@@ -368,43 +368,43 @@ def state_to_features(game_state: dict) -> np.array:
         #now all spaces with entry 0 are safe spaces for the current state
         free_s = np.argwhere(field==0)
         pos = np.full_like(free_s,np.asarray(player))
-        dises = np.linalg.norm(pos-free_s,axis=1)
+        free_s_distances = np.linalg.norm(pos-free_s,axis=1)
         test_s = []
         ###To speed training up I worked with euclidian distances, as soon as Laurin has optimized find_path we can rechange that
         """
         #just consider near spaces (otherwise it would take to long)
-        for i in range(len(dises)):
-            if dises[i]<=6:
+        for i in range(len(free_s_distances)):
+            if free_s_distances[i]<=6:
                 test_s.append(free_s[i])
-        diss=[]
-        max_iter=1000
+        safe_space_distance=[]
+        maximal_iteration =1000
         for s in test_s:
-            path_iter = find_path(np.asarray(player),s, game_state['field'],max_iter)            
+            path_iter = find_path(np.asarray(player),s, game_state['field'],maximal_iteration)            
             if path_iter == False:
-                diss.append(200)
-                max_iter=200
+                safe_space_distance.append(200)
+                maximal_iteration=200
             elif path_iter == True: #if we are already safe, we don't have to check the rest
-                diss.append(0)
-                max_iter=0
+                safe_space_distance.append(0)
+                maximal_iteration=0
             else:
-                diss.append(path_iter) 
-                max_iter=path_iter #we are only interessted in better choice, therefore we can speed calculation up
+                safe_space_distance.append(path_iter) 
+                maximal_iteration=path_iter #we are only interessted in better choice, therefore we can speed calculation up
         
-        closest_spot = min(diss)
+        closest_spot = min(safe_space_distances)
         """
-        closest_spot = np.min(dises) #part of upspeeding
+        closest_spot = np.min(free_s_distances) #part of upspeeding
     
     if closest_spot==0 and game_state['bombs']!=[]:
-        inv_close=2
+        inverted_closest_spot=2
     elif (player,4) in game_state['bombs']:
-        inv_close = 0
+        inverted_closest_spot = 0
     elif game_state['bombs']==[]:
         
-        inv_close=0
+        inverted_closest_spot=0
     else:
-        inv_close=1/closest_spot
+        inverted_closest_spot=1/closest_spot
 
-    features.append(inv_close)
+    features.append(inverted_closest_spot)
 
     
     ###Feature 3: Count destroyable crates by a dropped bomb
@@ -447,42 +447,42 @@ def state_to_features(game_state: dict) -> np.array:
     ###Feature 5: Find next crate
 
     field=np.copy(game_state['field'])
-    crate_ind = np.argwhere(field==1) #find all crates on the field
+    crate_indices = np.argwhere(field==1) #find all crates on the field
     player = np.asarray(game_state['self'][3])
 
-    mini=False
+    minimal_index=False
     
     for i in range(5):
         
         #and game_state['self'][2]==True
-        if len(crate_ind)!=0 and np.all(crate_ind[:,0]!=-20): #if there are no crates we can't find any distances
+        if len(crate_indices)!=0 and np.all(crate_indices[:,0]!=-20): #if there are no crates we can't find any distances
 
-            p = np.full_like(crate_ind,player)
-            diff=np.linalg.norm(p-crate_ind,axis=1)
-            mini = np.argmin(diff)
-            cim = crate_ind[mini]
+            p = np.full_like(crate_indices,player)
+            diff=np.linalg.norm(p-crate_indices,axis=1)
+            minimal_index = np.argmin(diff)
+            minimal_crate = crate_indices[minimal_index]
 
             #we need to virtually remove the crate to make the find_path function work
-            field[cim[0],cim[1]]=0
-            min_dis = find_path(player,crate_ind[mini], field) #safe computation time by only calulating the euclidian closest 
-            field[cim[0],cim[1]]=1
+            field[minimal_crate[0],minimal_crate[1]]=0
+            mininmal_crate_distance = find_path(player,crate_indices[minimal_index], field) #safe computation time by only calulating the euclidian closest 
+            field[minimal_crate[0],minimal_crate[1]]=1
 
-            assert min_dis != True #by definition one can't stand on a crate spot. Thus diff can't be 0.
+            assert mininmal_crate_distance != True #by definition one can't stand on a crate spot. Thus diff can't be 0.
 
-            if min_dis==False: #the euclidian next crate is not reachable, therefore we ignore him this round
-                invert_dis = 0
+            if mininmal_crate_distance==False: #the euclidian next crate is not reachable, therefore we ignore him this round
+                inverted_minimal_crate_distance = 0
 
             elif field[player[0],player[1]]==0: #don't walk in danger
 
-                min_dis-=1 #to get min_dis we virtually removed the crate, but now the crate is back. Therefore it is reached one step earlier.
+                mininmal_crate_distance-=1 #to get minimal_crate_distance we virtually removed the crate, but now the crate is back. Therefore it is reached one step earlier.
 
-                invert_dis = 1/min_dis
+                inverted_minimal_crate_distance = 1/mininmal_crate_distance
 
             else:
-                invert_dis = 0
-            features.append(invert_dis)
+                inverted_minimal_crate_distance = 0
+            features.append(inverted_minimal_crate_distance)
             
-            crate_ind[mini][0]=-20
+            crate_indices[minimal_index][0]=-20
             
         else:
             features.append(0)
