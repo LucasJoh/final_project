@@ -7,8 +7,6 @@ import heapq
 import numpy as np
 import copy
 
-from numpy.core.fromnumeric import _searchsorted_dispatcher
-
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -30,7 +28,8 @@ def setup(self):
     if not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
-        self.model = np.full(5,0.1)
+        #self.model = np.concatenate((np.full(11,0.1),np.full(5,0.01)))
+        self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.01,0.01,0.01,0.01])
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -92,12 +91,12 @@ def act(self, game_state: dict) -> str:
     """
     
     S=game_state
-    action = range(1,len(ACTIONS)+1)
     
     w=self.model
     
     ###find greedy action (maximizes q_hat for given S and w)
-    tester = np.array([np.abs(q_hat(self,S,a,w)) for a in ACTIONS])
+    tester = np.array([q_hat(self,S,a,w) for a in ACTIONS])
+    
     if np.all(tester==tester[0]):###if all entries are equal the first entry is chosen by argmax
         greedy = np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB'], p=[.23, .23, .23, .23, .08])
     #if all step-entries have equal value and value of bomb is less, do random step
@@ -113,7 +112,7 @@ def act(self, game_state: dict) -> str:
           
     #Exploration vs exploitation
     # definie hyperparameter for epsilon-greedy-policy (lecture 2, p.3)
-    epsilon = 0.1
+    epsilon = 0.01
     
     if self.train:
         #in training-mode use epsilon-greedy-policy
@@ -410,29 +409,31 @@ def state_to_features(self, game_state: dict) -> np.array:
     
 
     ###Feature 1: Define continous potential but avoid 1/r with r->0
-    dis=[]
+    coin_distance=[]
     
     if (coins == None) or (coins == []): #if there are no coins to collect, we don't want to be confused
-        nextcoin=0
+        coin_distance=[200 for i in range(9)]
     else:
         for i in range(len(coins)):
             if coins[i][0]!=0:
                 #dis.append(np.linalg.norm(np.asarray(player)-np.asarray(coins[i])))
                 path_it = find_path(self, np.asarray(player),np.asarray(coins[i]), game_state['field'])
                 
-                dis.append(path_it)
+                coin_distande.append(path_it)
                 
-        nextcoin=min(dis)
+        nextcoin=min(coin_distance)
 
-    if nextcoin==0:
-        inv_dis=2
-    else:
-        inv_dis = 1/nextcoin #<=1 and >0
-    features.append(inv_dis)
+        #nextcoin=min(coin_distance)
+    for nextcoin in coin_distance:
+        if nextcoin==0:
+            inverted_coin_distance=2
+        else:
+            inverted_coin_distance = 1/nextcoin #<=1 and >0
+        features.append(inverted_coin_distance)
     
 
     ###Remark: I will remove that soon
-    features.append(0)
+    #features.append(0)
 
 
     ###Feature 2: look for next safe_space
@@ -441,9 +442,9 @@ def state_to_features(self, game_state: dict) -> np.array:
 
     closest_spot = 200
 
-    ###max 4*13=52 iterations, probably won't take to long
+    #max 4*13=52 iterations, probably won't take to long
     
-    if game_state['bombs']!=[]: #only if bombs are active on the field
+    if game_state['bombs']!=[] and  not ((player,4) in game_state['bombs']): #only if bombs are active on the field
 
         #determine all spaces that are currently threatend by a bomb and insert entry 2 in our copy
         for bomb in game_state['bombs']:
@@ -455,9 +456,9 @@ def state_to_features(self, game_state: dict) -> np.array:
                             field[s[0],s[1]]=2
 
         #determine all spaces that are threatend by a remaining explosion and insert entry 3 in our copy
-        explosions = game_state['explosion_map']
-        expl = np.argwhere(explosions!=0)
-        for e in expl:
+        explosion_map = game_state['explosion_map']
+        explosions = np.argwhere(explosion_map!=0)
+        for e in explosions:
             
             if field[e[0],e[1]]!=-1:
                 field[e[0],e[1]]=3
@@ -465,36 +466,40 @@ def state_to_features(self, game_state: dict) -> np.array:
         #now all spaces with entry 0 are safe spaces for the current state
         free_s = np.argwhere(field==0)
         pos = np.full_like(free_s,np.asarray(player))
-        dises = np.linalg.norm(pos-free_s,axis=1)
+        free_s_distances = np.linalg.norm(pos-free_s,axis=1)
         test_s = []
-
+        ###To speed training up I worked with euclidian distances, as soon as Laurin has optimized find_path we can rechange that
+        
         #just consider near spaces (otherwise it would take to long)
-        for i in range(len(dises)):
-            if dises[i]<=6:
+        for i in range(len(free_s_distances)):
+            if free_s_distances[i]<=6:
                 test_s.append(free_s[i])
-        diss=[]
-        max_iter=1000
+        safe_space_distance=[]
+        maximal_iteration =1000
         for s in test_s:
             path_iter = find_path(self, np.asarray(player),s, game_state['field'])          
             
             if path_iter < max_iter:
 
-                diss.append(path_iter) 
+                safe_space_distance.append(path_iter) 
                 max_iter=path_iter #we are only interessted in better choice, therefore we can speed calculation up
+
         
-        closest_spot = min(diss)
+        closest_spot = min(safe_space_distance)
+        
+        #closest_spot = np.min(free_s_distances) #part of upspeeding
     
     if closest_spot==0 and game_state['bombs']!=[]:
-        inv_close=2
+        inverted_closest_spot=2
     elif (player,4) in game_state['bombs']:
-        inv_close = 0
+        inverted_closest_spot = 0
     elif game_state['bombs']==[]:
         
-        inv_close=0
+        inverted_closest_spot=0
     else:
-        inv_close=1/closest_spot
+        inverted_closest_spot=1/closest_spot
 
-    features.append(inv_close)
+    features.append(inverted_closest_spot)
 
     
     ###Feature 3: Count destroyable crates by a dropped bomb
@@ -516,22 +521,41 @@ def state_to_features(self, game_state: dict) -> np.array:
     else:
         crates=0
 
-    features.append(crates)
+    #features.append(crates)
 
 
-    ###Feature 4: Find next crate
-    #TODO: not only add the euclidian next, but a handfull of near crates to the feature spaces
+    ###Feature 4: Check how many crates are next to the agent
+
+    if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
+
+        spaces_around_agent = [[player[0]+1,player[1]],[player[0]-1,player[1]],[player[0],player[1]+1],[player[0],player[1]-1]]
+        field_around_agent = np.array([game_state['field'][space[0]][space[1]] for space in spaces_around_agent])
+        crates_around_agent = np.count_nonzero(field_around_agent==1)
+        if crates_around_agent > 0:
+            features.append(crates_around_agent/4)
+        else:
+            features.append(0)
+    else:
+        features.append(0)
+
+
+    ###Feature 5: Find next crate
 
     field=np.copy(game_state['field'])
-    crate_ind = np.argwhere(field==1) #find all crates on the field
+    crate_indices = np.argwhere(field==1) #find all crates on the field
     player = np.asarray(game_state['self'][3])
 
-    if len(crate_ind)!=0: #if there are no crates we can't find any distances
+    minimal_index=False
+    
+    for i in range(5):
+        
+        #and game_state['self'][2]==True
+        if len(crate_indices)!=0 and np.all(crate_indices[:,0]!=-20): #if there are no crates we can't find any distances
 
-        p = np.full_like(crate_ind,player)
-        diff=np.linalg.norm(p-crate_ind,axis=1)
-        mini = np.argmin(diff)
-        cim = crate_ind[mini]
+            p = np.full_like(crate_indices,player)
+            diff=np.linalg.norm(p-crate_indices,axis=1)
+            minimal_index = np.argmin(diff)
+            minimal_crate = crate_indices[minimal_index]
 
         #we need to virtually remove the crate to make the find_path function work
         field[cim[0],cim[1]] = 0
@@ -541,19 +565,21 @@ def state_to_features(self, game_state: dict) -> np.array:
         assert min_dis != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
 
         if min_dis == 200: #the euclidian next crate is not reachable, therefore we ignore him this round
-            invert_dis = 0
+            inverted_minimal_crate_distance = 0
 
         elif field[player[0],player[1]]==0: #don't walk in danger
              #to get min_dis we virtually removed the crate, but now the crate is back. Therefore it is reached one step earlier.
 
-            invert_dis = 1/min_dis
+                inverted_minimal_crate_distance = 1/mininmal_crate_distance
 
+            else:
+                inverted_minimal_crate_distance = 0
+            features.append(inverted_minimal_crate_distance)
+            
+            crate_indices[minimal_index][0]=-20
+            
         else:
-            invert_dis = 0
-        features.append(invert_dis)
-
-    else:
-        features.append(0)
+            features.append(0)
 
     #I kept this distinction between features and channels if a feature augmentation would be neccessary at some point (Sutton, 9.5)
     for feature in features:

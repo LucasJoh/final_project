@@ -20,6 +20,9 @@ PLACEHOLDER_EVENT = "PLACEHOLDER"
 GETTING_CLOSER = "GETTING_CLOSER"
 LOOSING_COIN = "LOOSING_COIN"
 WELL_PLACED_BOMB = "WELL_PLACED_BOMB"
+BAD_PLACED_BOMB = "BAD_PLACED_BOMB"
+TOWARDS_SAFE_PLACE = "TOWARDS_SAFE_PLACE"
+EARLY_SUICID = "EARLY_SUICID"
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -81,26 +84,33 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         S=old_game_state
         S_prime = new_game_state
         A=self_action
-        R=reward_from_events(self,events)
+        
 
         old_features = state_to_features(S)
         new_features = state_to_features(S_prime)
         
         #trigger event when agent gets closer to coin or looses it
-        if new_features[0]>old_features[0]:
-            events.append(GETTING_CLOSER)
+        # if new_features[0]>old_features[0]:
+        #     events.append(GETTING_CLOSER)
             
-        if (new_features[0]<old_features[0]):
-            events.append(LOOSING_COIN)
+        # if (new_features[0]<old_features[0]):
+        #     events.append(LOOSING_COIN)
 
         #trigger event that gives good reward for a well-placed bomb in the sense of reached crates
-        if old_features[3]>=(2/13) and self_action=="BOMB":
+        if old_features[10]>=(2/13) and self_action=="BOMB":
             events.append(WELL_PLACED_BOMB)
+        if old_features[10]==0 and self_action=="BOMB":
+            events.append(BAD_PLACED_BOMB)
+
+        if old_features[9]<new_features[9]:
+            events.append(TOWARDS_SAFE_PLACE)
+        
+        R=reward_from_events(self,events)
             
         #hyperparameter for training algorithm  
         #TODO Find good hyperparameter (Sutton 9.6) @Simon 
-        gamma=0.7
-        alpha=0.2
+        gamma=0.9
+        alpha=0.01
         
         w=self.model
         
@@ -153,9 +163,12 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     S=last_game_state   
     A=last_action
 
+    if S['step']<=10 and 'KILLED_SELF' in events:
+        events.append(EARLY_SUICID)
+
     #hyperparameter   
-    gamma=0.7
-    alpha=0.2
+    gamma=0.9
+    alpha=0.001
 
     w=self.model
     
@@ -163,6 +176,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     w=w+alpha*(reward_from_events(self,events)-gamma*q_hat(S,A,w)-q_hat(S,A,w))*grad_q_hat(S,A,w)
 
     self.model=w
+    print(w)
 
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
@@ -185,15 +199,18 @@ def reward_from_events(self, events: List[str]) -> int:
         e.MOVED_UP: -.1,
         e.WAITED: -.1,
         e.INVALID_ACTION: -1,
-        e.KILLED_SELF: -1,
+        e.KILLED_SELF: -9,
         e.GOT_KILLED: -0.5,
         e.CRATE_DESTROYED: 0.2,
         e.COIN_FOUND: 5,
         e.BOMB_DROPPED: 0.5,
         e.BOMB_EXPLODED: 0.0,
-        GETTING_CLOSER: 3,
+        GETTING_CLOSER: 0.5,
         LOOSING_COIN: -0.2,
-        WELL_PLACED_BOMB: 1,
+        WELL_PLACED_BOMB: 0.5,
+        BAD_PLACED_BOMB: -.1,
+        TOWARDS_SAFE_PLACE: 3,
+        EARLY_SUICID: -5,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
     reward_sum = 0
