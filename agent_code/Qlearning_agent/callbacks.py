@@ -26,7 +26,8 @@ def setup(self):
     if not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
-        self.model = np.concatenate((np.full(11,0.1),np.full(5,0.01)))
+        #self.model = np.concatenate((np.full(11,0.1),np.full(5,0.01)))
+        self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.01,0.01,0.01,0.01])
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -369,6 +370,7 @@ def state_to_features(game_state: dict) -> np.array:
         pos = np.full_like(free_s,np.asarray(player))
         dises = np.linalg.norm(pos-free_s,axis=1)
         test_s = []
+        ###To speed training up I worked with euclidian distances, as soon as Laurin has optimized find_path we can rechange that
         """
         #just consider near spaces (otherwise it would take to long)
         for i in range(len(dises)):
@@ -390,7 +392,7 @@ def state_to_features(game_state: dict) -> np.array:
         
         closest_spot = min(diss)
         """
-        closest_spot = np.min(dises)
+        closest_spot = np.min(dises) #part of upspeeding
     
     if closest_spot==0 and game_state['bombs']!=[]:
         inv_close=2
@@ -424,11 +426,25 @@ def state_to_features(game_state: dict) -> np.array:
     else:
         crates=0
 
-    features.append(crates)
+    #features.append(crates)
 
 
-    ###Feature 4: Find next crate
-    #TODO: not only add the euclidian next, but a handfull of near crates to the feature spaces
+    ###Feature 4: Check how many crates are next to the agent
+
+    if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
+
+        spaces_around_agent = [[player[0]+1,player[1]],[player[0]-1,player[1]],[player[0],player[1]+1],[player[0],player[1]-1]]
+        field_around_agent = np.array([game_state['field'][space[0]][space[1]] for space in spaces_around_agent])
+        crates_around_agent = np.count_nonzero(field_around_agent==1)
+        if crates_around_agent > 0:
+            features.append(crates_around_agent/4)
+        else:
+            features.append(0)
+    else:
+        features.append(0)
+
+
+    ###Feature 5: Find next crate
 
     field=np.copy(game_state['field'])
     crate_ind = np.argwhere(field==1) #find all crates on the field
