@@ -73,8 +73,8 @@ def q_hat(self,S,A,w):
     
     X=state_to_features(self, S_temp)
     
-    # print("X:",A,X)
-    # print("w:",w)
+    self.logger.debug(f"X:,{A},{X}")
+    self.logger.debug(f"w:,{w}")
 
     assert len(w)==len(X)
     return w@X
@@ -420,6 +420,8 @@ def state_to_features(self, game_state: dict) -> np.array:
                 path_it = find_path(self, np.asarray(player),np.asarray(coins[i]), game_state['field'])
                 
                 coin_distance.append(path_it)
+            else:
+                coin_distance.append(200)
                 
         nextcoin=min(coin_distance)
 
@@ -521,7 +523,7 @@ def state_to_features(self, game_state: dict) -> np.array:
     else:
         crates=0
 
-    #features.append(crates)
+    # features.append(crates)
 
 
     ###Feature 4: Check how many crates are next to the agent
@@ -572,9 +574,9 @@ def state_to_features(self, game_state: dict) -> np.array:
 
                 inverted_minimal_crate_distance = 1/minimal_crate_distance
 
-                features.append(inverted_minimal_crate_distance)
+            features.append(inverted_minimal_crate_distance)
                 
-                crate_indices[minimal_index][0]=-20
+            crate_indices[minimal_index][0]=-20
             
         else:
             features.append(0)                                  
