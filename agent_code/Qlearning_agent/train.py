@@ -40,7 +40,7 @@ def setup_training(self):
     self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
     
 
-def grad_q_hat(S,A,w):
+def grad_q_hat(self,S,A,w):
     """
     Just a short implementation of gradient of q_hat with respect to w.
     This of course only works for q_hat as defined in callbacks.py
@@ -54,7 +54,7 @@ def grad_q_hat(S,A,w):
     for i in range(len(w)):#use that q is just linear wrt w
         w_temp=np.zeros_like(w)
         w_temp[i]=1
-        grad[i]= q_hat(S,A,w_temp)
+        grad[i]= q_hat(self,S,A,w_temp)
     return grad
 
 
@@ -86,8 +86,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         A=self_action
         
 
-        old_features = state_to_features(S)
-        new_features = state_to_features(S_prime)
+        old_features = state_to_features(self, S)
+        new_features = state_to_features(self, S_prime)
         
         #trigger event when agent gets closer to coin or looses it
         # if new_features[0]>old_features[0]:
@@ -118,7 +118,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         #Right now it is Q-learning, but SARSA or expected-SARSA are also possible (lecture 3, p.2; Sutton 6 and 10)
         #TODO: Try different algorithms @Simon
 
-        tester = np.array([(q_hat(S,a,w)) for a in ACTIONS])
+        tester = np.array([(q_hat(self,S,a,w)) for a in ACTIONS])
         if np.all(tester==tester[0]):###if all entries are equal the first entry is chosen by argmax
             greedy = np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB'], p=[.23, .23, .23, .23, .08])
         else:
@@ -141,7 +141,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         
         
         ####Iteration
-        w=w+alpha*(R+gamma*q_hat(S_prime,A_prime,w)-q_hat(S,A,w))*grad_q_hat(S,A,w)
+        w=w+alpha*(R+gamma*q_hat(self,S_prime,A_prime,w)-q_hat(self,S,A,w))*grad_q_hat(self,S,A,w)
 
         self.model=w
 
@@ -158,7 +158,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     :param self: The same object that is passed to all of your callbacks.
     """
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
-    self.transitions.append(Transition(state_to_features(last_game_state), last_action, None, reward_from_events(self, events)))
+    self.transitions.append(Transition(state_to_features(self, last_game_state), last_action, None, reward_from_events(self, events)))
 
     S=last_game_state   
     A=last_action
@@ -173,7 +173,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     w=self.model
     
     ####Iteration
-    w=w+alpha*(reward_from_events(self,events)-gamma*q_hat(S,A,w)-q_hat(S,A,w))*grad_q_hat(S,A,w)
+    w=w+alpha*(reward_from_events(self,events)-gamma*q_hat(self,S,A,w)-q_hat(self,S,A,w))*grad_q_hat(self,S,A,w)
 
     self.model=w
     print(w)
