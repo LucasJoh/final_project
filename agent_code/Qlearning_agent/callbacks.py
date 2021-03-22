@@ -242,7 +242,11 @@ def find_path(self, starting_point, end_point, field):
 
     :return: the amount of steps that have to be taken as int
     """
-    
+    min_x = max(0, starting_point[0] - 5)
+    max_x = min(16, starting_point[0] + 5)
+    min_y = max(0, starting_point[1] - 5)
+    max_y = min(16, starting_point[1] + 5)
+
     if starting_point[0] != 0 or end_point[0] != 0:
 
         if starting_point[0]==end_point[0] and starting_point[1]==end_point[1]: #catch that easy case before looping
@@ -255,13 +259,14 @@ def find_path(self, starting_point, end_point, field):
         valid_fields = np.argwhere(field == 0)
         valid_nodes = []
         for tile in valid_fields:
-            valid_nodes.append((tile[0] - 1) * 15 + tile[1] - 1)
+            if min_x < tile[0] and max_x > tile[0] and min_y < tile[1] and max_y > tile[1]:
+                valid_nodes.append((tile[0] - 1) * 15 + tile[1] - 1)
         
 
         nodes = []
-        for i in range(15):
-            for j in range(15):
-                nodes.append(15*i + j)
+        for i in range(min_x, max_x + 1):
+            for j in range(min_y, max_y + 1):
+                nodes.append(i + j)
 
         graph = [None] * len(nodes)
 
@@ -474,12 +479,14 @@ def state_to_features(self, game_state: dict) -> np.array:
         test_s = []
         ###To speed training up I worked with euclidian distances, as soon as Laurin has optimized find_path we can rechange that
         
+        
         #just consider near spaces (otherwise it would take to long)
         for i in range(len(free_s_distances)):
-            if free_s_distances[i]<=6:
+            if free_s_distances[i]<=4:
                 test_s.append(free_s[i])
+
         safe_space_distance=[]
-        maximal_iteration =1000
+        maximal_iteration = 1000
         for s in test_s:
             path_iter = find_path(self, np.asarray(player),s, game_state['field'])          
             
