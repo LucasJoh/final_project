@@ -73,8 +73,8 @@ def q_hat(self,S,A,w):
     
     X=state_to_features(self, S_temp)
     
-    self.logger.debug(f"X:,{A},{X}")
-    self.logger.debug(f"w:,{w}")
+    # self.logger.debug(f"X:,{A},{X}")
+    # self.logger.debug(f"w:,{w}")
 
     assert len(w)==len(X)
     return w@X
@@ -106,17 +106,17 @@ def act(self, game_state: dict) -> str:
         greedy_ind = np.argmax(tester)
         greedy=ACTIONS[greedy_ind]
     
-    #print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
-    #print("w", w)
-    #print(greedy)
+    print("A",np.array([q_hat(self,S,a,w) for a in ACTIONS]))
+    print("w", w)
+    print(greedy)
           
     #Exploration vs exploitation
     # definie hyperparameter for epsilon-greedy-policy (lecture 2, p.3)
-    epsilon = 0.01
+    # epsilon = 0.01
     
-    if self.train:
-        #in training-mode use epsilon-greedy-policy
-        return np.random.choice([greedy,np.random.choice(ACTIONS,1)],1,p=[1-epsilon,epsilon])
+    # if self.train:
+    #     #in training-mode use epsilon-greedy-policy
+    #     return np.random.choice([greedy,np.random.choice(ACTIONS,1)],1,p=[1-epsilon,epsilon])
 
     self.logger.debug("Querying model for action")
     #in game-mode take greedy action
