@@ -29,7 +29,7 @@ def setup(self):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
         #self.model = np.concatenate((np.full(11,0.1),np.full(5,0.01)))
-        self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.01,0.01,0.01,0.01])
+        self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.01,0.01,0.05])
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -73,7 +73,7 @@ def q_hat(self,S,A,w):
     
     X=state_to_features(self, S_temp)
     
-    self.logger.debug(f"X:,{A},{X}")
+    self.logger.debug(f"X for {A}: {X}")
     self.logger.debug(f"w:,{w}")
     #print("X:",A,X)
     #print("w:",w)
@@ -111,6 +111,10 @@ def act(self, game_state: dict) -> str:
     #print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
     #print("w", w)
     #print(greedy)
+
+    #self.logger.debug(f"Action values: {tester}")
+    #self.logger.debug(f"w: {w}")
+    #self.logger.debug(f"greedy Action: {greedy}")
           
     #Exploration vs exploitation
     # definie hyperparameter for epsilon-greedy-policy (lecture 2, p.3)
@@ -476,7 +480,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         
         #just consider near spaces (otherwise it would take to long)
         for i in range(len(free_s_distances)):
-            if free_s_distances[i]<=2:
+            if free_s_distances[i]<=4:
                 test_s.append(free_s[i])
         safe_space_distance=[]
         maximal_iteration =1000
@@ -491,7 +495,9 @@ def state_to_features(self, game_state: dict) -> np.array:
         if len(safe_space_distance)!=0:
             closest_spot = min(safe_space_distance)
         else:
-            closest_spot = np.min(free_s_distances) #part of upspeeding
+            closest_spot = np.min(free_s_distances)
+    
+        #closest_spot = np.min(free_s_distances) #part of upspeeding
     
     if closest_spot==0 and game_state['bombs']!=[]:
         inverted_closest_spot=2
@@ -502,7 +508,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         inverted_closest_spot=0
     else:
         inverted_closest_spot=1/closest_spot
-
+    
     features.append(inverted_closest_spot)
 
     
@@ -528,7 +534,7 @@ def state_to_features(self, game_state: dict) -> np.array:
     # features.append(crates)
 
 
-    ###Feature 4: Check how many crates are next to the agent
+    ###Feature 3: Check how many crates are next to the agent
 
     if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
 
@@ -543,15 +549,15 @@ def state_to_features(self, game_state: dict) -> np.array:
         features.append(0)
 
 
-    ###Feature 5: Find next crate
+    ###Feature 4: Find next crate
 
     field=np.copy(game_state['field'])
     crate_indices = np.argwhere(field==1) #find all crates on the field
-    player = np.asarray(game_state['self'][3])
+    player = game_state['self'][3]
 
     minimal_index=False
     
-    for i in range(5):
+    for i in range(3):
         
         #and game_state['self'][2]==True
         if len(crate_indices)!=0 and np.all(crate_indices[:,0]!=-20): #if there are no crates we can't find any distances
@@ -559,13 +565,15 @@ def state_to_features(self, game_state: dict) -> np.array:
             p = np.full_like(crate_indices,player)
             diff=np.linalg.norm(p-crate_indices,axis=1)
             minimal_index = np.argmin(diff)
+            
             minimal_crate = crate_indices[minimal_index]
 
                 #we need to virtually remove the crate to make the find_path function work
             field[minimal_crate[0],minimal_crate[1]] = 0
             minimal_crate_distance = find_path(self, player, minimal_crate, field) #safe computation time by only calulating the euclidian closest 
             field[minimal_crate[0],minimal_crate[1]] = 1
-
+            
+            #minimal_crate_distance=np.min(diff)
             assert minimal_crate_distance != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
 
             if  minimal_crate_distance == 200: #the euclidian next crate is not reachable, therefore we ignore him this round
@@ -582,8 +590,30 @@ def state_to_features(self, game_state: dict) -> np.array:
             
         else:
             features.append(0)                                  
+    
+    ###Feature 5: Count threatened opponents by a dropped bomb
+    opponents = game_state['others']
+    
+    if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
 
-    #I kept this distinction between features and channels if a feature augmentation would be neccessary at some point (Sutton, 9.5)
+        reachable_opponents=0
+        reachable_spaces = in_range(player)
+
+        for enemy in opponents:
+            if is_in(enemy[3], reachable_spaces):
+                reachable_opponents+=1
+        
+        if reachable_opponents==0:
+            inverted_reachable_opponents=0
+        else:
+            inverted_reachable_opponents=reachable_opponents/3
+    else:
+        inverted_reachable_opponents=0
+
+    features.append(inverted_reachable_opponents)
+
+
+     #I kept this distinction between features and channels if a feature augmentation would be neccessary at some point (Sutton, 9.5)
     for feature in features:
         channels.append(feature)
     
@@ -592,5 +622,4 @@ def state_to_features(self, game_state: dict) -> np.array:
     # and return them as a vector
     
     return stacked_channels.reshape(-1)
-    
     
