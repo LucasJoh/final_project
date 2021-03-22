@@ -75,6 +75,8 @@ def q_hat(self,S,A,w):
     
     self.logger.debug(f"X:,{A},{X}")
     self.logger.debug(f"w:,{w}")
+    #print("X:",A,X)
+    #print("w:",w)
 
     assert len(w)==len(X)
     return w@X
