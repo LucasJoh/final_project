@@ -476,7 +476,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         
         #just consider near spaces (otherwise it would take to long)
         for i in range(len(free_s_distances)):
-            if free_s_distances[i]<=6:
+            if free_s_distances[i]<=2:
                 test_s.append(free_s[i])
         safe_space_distance=[]
         maximal_iteration =1000
@@ -487,11 +487,11 @@ def state_to_features(self, game_state: dict) -> np.array:
 
                 safe_space_distance.append(path_iter) 
                 maximal_iteration=path_iter #we are only interessted in better choice, therefore we can speed calculation up
-
         
-        closest_spot = min(safe_space_distance)
-        
-        #closest_spot = np.min(free_s_distances) #part of upspeeding
+        if len(safe_space_distance)!=0:
+            closest_spot = min(safe_space_distance)
+        else:
+            closest_spot = np.min(free_s_distances) #part of upspeeding
     
     if closest_spot==0 and game_state['bombs']!=[]:
         inverted_closest_spot=2
