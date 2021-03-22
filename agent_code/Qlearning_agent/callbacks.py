@@ -1,9 +1,13 @@
 import os
 import pickle
 import random
+import heapq
+
 
 import numpy as np
 import copy
+
+from numpy.core.fromnumeric import _searchsorted_dispatcher
 
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
@@ -34,7 +38,7 @@ def setup(self):
 
 
 #q-function
-def q_hat(S,A,w):
+def q_hat(self,S,A,w):
     """
     Estimated q-function that that maps q_hat: (States,Actions) -> R. It gives back the value of A in state S
     It is estimated by the weights w, that gives a special weight to each feature.
@@ -68,7 +72,7 @@ def q_hat(S,A,w):
             S_temp['bombs'].append((p[3],4))
             S_temp['self']=(p[0],p[1],False,p[3]) ##avoid bug, that after dropping a bomb the agent is able to drop another
     
-    X=state_to_features(S_temp)
+    X=state_to_features(self, S_temp)
     
     #print("X:",A,X)
     #print("w:",w)
@@ -93,7 +97,7 @@ def act(self, game_state: dict) -> str:
     w=self.model
     
     ###find greedy action (maximizes q_hat for given S and w)
-    tester = np.array([np.abs(q_hat(S,a,w)) for a in ACTIONS])
+    tester = np.array([np.abs(q_hat(self,S,a,w)) for a in ACTIONS])
     if np.all(tester==tester[0]):###if all entries are equal the first entry is chosen by argmax
         greedy = np.random.choice(['RIGHT', 'LEFT', 'UP', 'DOWN', 'BOMB'], p=[.23, .23, .23, .23, .08])
     #if all step-entries have equal value and value of bomb is less, do random step
@@ -196,8 +200,36 @@ def is_in(point, point_list, index=False):
         else:
             return False
 
+def dijkstra(graph, weights, start, destination):
+    parents = [None] * len(graph)
+
+    q = []
+    heapq.heappush(q, (0.0, start, start))
+
+    while len(q) > 0:
+        length, node, pred = heapq.heappop(q)
+
+        if parents[node] == None:
+            parents[node] = pred
+
+            if node == destination:
+                break
+            for neighbor in graph[node]:
+                if parents[neighbor] is None:
+                    newlength = length + weights[(node, neighbor)]
+                    heapq.heappush(q, (newlength, neighbor, node))
+    
+    if parents[destination] is None:
+        return None, None
+
+    path = [destination]
+    while path[-1] != start:
+        path.append(parents[path[-1]])
+    path.reverse()
+    return path, length
+
 #TODO speed that function up, maybe there is a special algorithm that fits better for that challenge @Laurin
-def find_path(starting_point, end_point, field, maxiter=200):
+def find_path(self, starting_point, end_point, field):
     """
     Inserting starting and end point and the underlaying field as an array.
     Gives back the amount of steps that have to be taken, False if there is no path or True if starting point equals end point.
@@ -209,70 +241,139 @@ def find_path(starting_point, end_point, field, maxiter=200):
 
     :return: the amount of steps that have to be taken as int
     """
-
-    #initialize the list of coordinates that build the path, and auxilliary list to check how often path has crossed a point
-    path=[starting_point,]
-    rounds = [0,]
     
-    if starting_point[0]==end_point[0] and starting_point[1]==end_point[1]: #catch that easy case before looping
-        return True
+    if starting_point[0] != 0 or end_point[0] != 0:
 
-    ##start loop to find a path
-    while (not is_in([end_point[0],end_point[1]],path)) and (len(path)<maxiter and len(path)>0):
+        if starting_point[0]==end_point[0] and starting_point[1]==end_point[1]: #catch that easy case before looping
+            self.logger.debug(f"How did I get here")
+            return 0
+
+        start = (starting_point[0] - 1) * 15 + starting_point[1] - 1
+        end = (end_point[0] - 1) * 15 + end_point[1] - 1
+    
+        valid_fields = np.argwhere(field == 0)
+        valid_nodes = []
+        for tile in valid_fields:
+            valid_nodes.append((tile[0] - 1) * 15 + tile[1] - 1)
         
-        point = path[-1]
-        #initialize a step in every direction
-        steps = [[point[0]+1,point[1]],[point[0]-1,point[1]],[point[0],point[1]+1],[point[0],point[1]-1]]
-        rank = rounds[-1]
 
-        if rank<4: #if we didn't already tried every direction (catch loops caused by nonreachable end points)
-            steplen = 1
-            while len(steps)!=0: #loop until there are no more steps to try
-                arr_steps = np.array(steps)
-                end = np.full_like(arr_steps,end_point)
-                diff = np.linalg.norm(arr_steps-end, axis=1)
+        nodes = []
+        for i in range(15):
+            for j in range(15):
+                nodes.append(15*i + j)
 
-                #in a previous try we tried the best step that led to a uncomplete path, now take the next best step
-                for i in range(rank): # the rank-th best step
-                    
-                    min_ind = np.argmin(diff)
-                    diff[min_ind] = 200 #don't delete the entry not to get problems with indices
-                    
-                min_ind = np.argmin(diff)
-                best_step = steps[min_ind] #choose the best step out of all steps that are left
+        graph = [None] * len(nodes)
+
+        weights = {}
+        
+        
+        for node in nodes:
+            new_node = node + 1
+            if new_node in valid_nodes:
+                if graph[node] == None:
+                    graph[node] = []
+                weights[(node, new_node)] = 1
+                graph[node].append(new_node)
+            
+            new_node = node - 1
+            if new_node in valid_nodes:
+                if graph[node] == None:
+                    graph[node] = []
+                weights[(node, new_node)] = 1
+                graph[node].append(new_node)
+            
+
+            new_node = node + 15
+            if new_node in valid_nodes:
+                if graph[node] == None:
+                    graph[node] = []
+                weights[(node, new_node)] = 1
+                graph[node].append(new_node)
                 
-                if field[best_step[0],best_step[1]]==0: #check whether step is possible
-                    path.append(best_step)
-                    rounds.append(0)
-                    steplen = len(steps)
-                    steps=[] #can forget the remaining options
-                else:
-                    steps.remove(best_step) #remove that option and try with another
+            new_node = node - 15
+            if new_node in valid_nodes:
+                if graph[node] == None:
+                    graph[node] = []
+                weights[(node, new_node)] = 1
+                graph[node].append(new_node)
 
-            #if we are trapped on a circle, remove the circle and give sign to take another step
-            if is_in(path[-1],path[:-1]): #if this is true we are crossing our path somewhere ->circle
+        self.logger.debug(f"{graph}")
+        self.logger.debug(f"{weights}")
+        path, length = dijkstra(graph, weights, start, end)
 
-                if steplen == 1 or rounds[-1]==4: #if this is true we are trapped
-                    #go back two steps
-                    del path[-2:] 
-                    del rounds[-2:]
-                    rounds[-1]+=1
-                else:
-                    #go back one step
-                    del path[-1]
-                    del rounds[-1]
-                    rounds[-1]+=1
+        if length != None:
+            self.logger.debug(f"{length}")
+            return length
         else:
-            path=[]
+            return 200
+    else:
+        return 201
+
+
+
+    # #initialize the list of coordinates that build the path, and auxilliary list to check how often path has crossed a point
+    # path=[starting_point,]
+    # rounds = [0,]
+    
+    # if starting_point[0]==end_point[0] and starting_point[1]==end_point[1]: #catch that easy case before looping
+    #     return True
+
+    # ##start loop to find a path
+    # while (not is_in([end_point[0],end_point[1]],path)) and (len(path)<maxiter and len(path)>0):
+        
+    #     point = path[-1]
+    #     #initialize a step in every direction
+    #     steps = [[point[0]+1,point[1]],[point[0]-1,point[1]],[point[0],point[1]+1],[point[0],point[1]-1]]
+    #     rank = rounds[-1]
+
+    #     if rank<4: #if we didn't already tried every direction (catch loops caused by nonreachable end points)
+    #         steplen = 1
+    #         while len(steps)!=0: #loop until there are no more steps to try
+    #             arr_steps = np.array(steps)
+    #             end = np.full_like(arr_steps,end_point)
+    #             diff = np.linalg.norm(arr_steps-end, axis=1)
+
+    #             #in a previous try we tried the best step that led to a uncomplete path, now take the next best step
+    #             for i in range(rank): # the rank-th best step
+                    
+    #                 min_ind = np.argmin(diff)
+    #                 diff[min_ind] = 200 #don't delete the entry not to get problems with indices
+                    
+    #             min_ind = np.argmin(diff)
+    #             best_step = steps[min_ind] #choose the best step out of all steps that are left
+                
+    #             if field[best_step[0],best_step[1]]==0: #check whether step is possible
+    #                 path.append(best_step)
+    #                 rounds.append(0)
+    #                 steplen = len(steps)
+    #                 steps=[] #can forget the remaining options
+    #             else:
+    #                 steps.remove(best_step) #remove that option and try with another
+
+    #         #if we are trapped on a circle, remove the circle and give sign to take another step
+    #         if is_in(path[-1],path[:-1]): #if this is true we are crossing our path somewhere ->circle
+
+    #             if steplen == 1 or rounds[-1]==4: #if this is true we are trapped
+    #                 #go back two steps
+    #                 del path[-2:] 
+    #                 del rounds[-2:]
+    #                 rounds[-1]+=1
+    #             else:
+    #                 #go back one step
+    #                 del path[-1]
+    #                 del rounds[-1]
+    #                 rounds[-1]+=1
+    #     else:
+    #         path=[]
         
     
-    if path==False:
-        return False
-    else:
-        return len(path)
+    # if path==False:
+    #     return False
+    # else:
+    #     return len(path)
 
 
-def state_to_features(game_state: dict) -> np.array:
+def state_to_features(self, game_state: dict) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*
 
@@ -317,14 +418,10 @@ def state_to_features(game_state: dict) -> np.array:
         for i in range(len(coins)):
             if coins[i][0]!=0:
                 #dis.append(np.linalg.norm(np.asarray(player)-np.asarray(coins[i])))
-                path_it = find_path(np.asarray(player),np.asarray(coins[i]), game_state['field'])
+                path_it = find_path(self, np.asarray(player),np.asarray(coins[i]), game_state['field'])
                 
-                if path_it == False:
-                    dis.append(200)
-                else:
-                    dis.append(path_it)
-            else:
-                dis.append(201)
+                dis.append(path_it)
+                
         nextcoin=min(dis)
 
     if nextcoin==0:
@@ -378,14 +475,10 @@ def state_to_features(game_state: dict) -> np.array:
         diss=[]
         max_iter=1000
         for s in test_s:
-            path_iter = find_path(np.asarray(player),s, game_state['field'],max_iter)            
-            if path_iter == False:
-                diss.append(200)
-                max_iter=200
-            elif path_iter == True: #if we are already safe, we don't have to check the rest
-                diss.append(0)
-                max_iter=0
-            else:
+            path_iter = find_path(self, np.asarray(player),s, game_state['field'])          
+            
+            if path_iter < max_iter:
+
                 diss.append(path_iter) 
                 max_iter=path_iter #we are only interessted in better choice, therefore we can speed calculation up
         
@@ -441,18 +534,17 @@ def state_to_features(game_state: dict) -> np.array:
         cim = crate_ind[mini]
 
         #we need to virtually remove the crate to make the find_path function work
-        field[cim[0],cim[1]]=0
-        min_dis = find_path(player,crate_ind[mini], field) #safe computation time by only calulating the euclidian closest 
-        field[cim[0],cim[1]]=1
+        field[cim[0],cim[1]] = 0
+        min_dis = find_path(self, player, crate_ind[mini], field) #safe computation time by only calulating the euclidian closest 
+        field[cim[0],cim[1]] = 1
 
-        assert min_dis != True #by definition one can't stand on a crate spot. Thus diff can't be 0.
+        assert min_dis != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
 
-        if min_dis==False: #the euclidian next crate is not reachable, therefore we ignore him this round
+        if min_dis == 200: #the euclidian next crate is not reachable, therefore we ignore him this round
             invert_dis = 0
 
         elif field[player[0],player[1]]==0: #don't walk in danger
-
-            min_dis-=1 #to get min_dis we virtually removed the crate, but now the crate is back. Therefore it is reached one step earlier.
+             #to get min_dis we virtually removed the crate, but now the crate is back. Therefore it is reached one step earlier.
 
             invert_dis = 1/min_dis
 
