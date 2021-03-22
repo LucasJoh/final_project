@@ -109,7 +109,7 @@ def act(self, game_state: dict) -> str:
           
     #Exploration vs exploitation
     # definie hyperparameter for epsilon-greedy-policy (lecture 2, p.3)
-    epsilon = 0.1
+    epsilon = 0.01
     
     if self.train:
         #in training-mode use epsilon-greedy-policy
@@ -371,7 +371,7 @@ def state_to_features(game_state: dict) -> np.array:
         free_s_distances = np.linalg.norm(pos-free_s,axis=1)
         test_s = []
         ###To speed training up I worked with euclidian distances, as soon as Laurin has optimized find_path we can rechange that
-        """
+        
         #just consider near spaces (otherwise it would take to long)
         for i in range(len(free_s_distances)):
             if free_s_distances[i]<=6:
@@ -390,9 +390,9 @@ def state_to_features(game_state: dict) -> np.array:
                 safe_space_distance.append(path_iter) 
                 maximal_iteration=path_iter #we are only interessted in better choice, therefore we can speed calculation up
         
-        closest_spot = min(safe_space_distances)
-        """
-        closest_spot = np.min(free_s_distances) #part of upspeeding
+        closest_spot = min(safe_space_distance)
+        
+        #closest_spot = np.min(free_s_distances) #part of upspeeding
     
     if closest_spot==0 and game_state['bombs']!=[]:
         inverted_closest_spot=2

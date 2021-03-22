@@ -168,7 +168,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     #hyperparameter   
     gamma=0.9
-    alpha=0.01
+    alpha=0.001
 
     w=self.model
     
@@ -176,7 +176,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     w=w+alpha*(reward_from_events(self,events)-gamma*q_hat(S,A,w)-q_hat(S,A,w))*grad_q_hat(S,A,w)
 
     self.model=w
-    #print(w)
+    print(w)
 
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
