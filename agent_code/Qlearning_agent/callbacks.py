@@ -73,8 +73,8 @@ def q_hat(self,S,A,w):
     
     X=state_to_features(self, S_temp)
     
-    #print("X:",A,X)
-    #print("w:",w)
+    # print("X:",A,X)
+    # print("w:",w)
 
     assert len(w)==len(X)
     return w@X
@@ -419,7 +419,7 @@ def state_to_features(self, game_state: dict) -> np.array:
                 #dis.append(np.linalg.norm(np.asarray(player)-np.asarray(coins[i])))
                 path_it = find_path(self, np.asarray(player),np.asarray(coins[i]), game_state['field'])
                 
-                coin_distande.append(path_it)
+                coin_distance.append(path_it)
                 
         nextcoin=min(coin_distance)
 
@@ -479,10 +479,10 @@ def state_to_features(self, game_state: dict) -> np.array:
         for s in test_s:
             path_iter = find_path(self, np.asarray(player),s, game_state['field'])          
             
-            if path_iter < max_iter:
+            if path_iter < maximal_iteration:
 
                 safe_space_distance.append(path_iter) 
-                max_iter=path_iter #we are only interessted in better choice, therefore we can speed calculation up
+                maximal_iteration=path_iter #we are only interessted in better choice, therefore we can speed calculation up
 
         
         closest_spot = min(safe_space_distance)
@@ -557,29 +557,27 @@ def state_to_features(self, game_state: dict) -> np.array:
             minimal_index = np.argmin(diff)
             minimal_crate = crate_indices[minimal_index]
 
-        #we need to virtually remove the crate to make the find_path function work
-        field[cim[0],cim[1]] = 0
-        min_dis = find_path(self, player, crate_ind[mini], field) #safe computation time by only calulating the euclidian closest 
-        field[cim[0],cim[1]] = 1
+                #we need to virtually remove the crate to make the find_path function work
+            field[minimal_crate[0],minimal_crate[1]] = 0
+            minimal_crate_distance = find_path(self, player, minimal_crate, field) #safe computation time by only calulating the euclidian closest 
+            field[minimal_crate[0],minimal_crate[1]] = 1
 
-        assert min_dis != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
+            assert minimal_crate_distance != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
 
-        if min_dis == 200: #the euclidian next crate is not reachable, therefore we ignore him this round
-            inverted_minimal_crate_distance = 0
-
-        elif field[player[0],player[1]]==0: #don't walk in danger
-             #to get min_dis we virtually removed the crate, but now the crate is back. Therefore it is reached one step earlier.
-
-                inverted_minimal_crate_distance = 1/mininmal_crate_distance
-
-            else:
+            if  minimal_crate_distance == 200: #the euclidian next crate is not reachable, therefore we ignore him this round
                 inverted_minimal_crate_distance = 0
-            features.append(inverted_minimal_crate_distance)
-            
-            crate_indices[minimal_index][0]=-20
+
+            elif field[player[0],player[1]]==0: #don't walk in danger
+                #to get min_dis we virtually removed the crate, but now the crate is back. Therefore it is reached one step earlier.
+
+                inverted_minimal_crate_distance = 1/minimal_crate_distance
+
+                features.append(inverted_minimal_crate_distance)
+                
+                crate_indices[minimal_index][0]=-20
             
         else:
-            features.append(0)
+            features.append(0)                                  
 
     #I kept this distinction between features and channels if a feature augmentation would be neccessary at some point (Sutton, 9.5)
     for feature in features:
