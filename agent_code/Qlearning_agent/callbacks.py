@@ -74,8 +74,8 @@ def q_hat(self,S,A,w):
     
     X=state_to_features(self, S_temp)
     
-    self.logger.debug(f"X:,{A},{X}")
-    self.logger.debug(f"w:,{w}")
+    # self.logger.debug(f"X:,{A},{X}")
+    # self.logger.debug(f"w:,{w}")
     #print("X:",A,X)
     #print("w:",w)
 
@@ -244,7 +244,7 @@ def dijkstra(graph, weights, start, destination):
     :return: the amount of steps that have to be taken as int
     """
 
-def find_path(free_space, start, targets, logger=None):
+def find_path(self, free_space, start, targets):
     """Find direction of closest target that can be reached via free tiles.
 
     Performs a breadth-first search of the reachable free tiles until a target is encountered.
@@ -279,7 +279,8 @@ def find_path(free_space, start, targets, logger=None):
         if d == 0:
             # Found path to a target's exact position, mission accomplished!
             best = current
-            break
+            self.logger.debug(f"'Suitable target found at {best}")
+            return best_dist
         # Add unexplored free neighboring tiles to the queue in a random order
         x, y = current
         neighbors = [(x, y) for (x, y) in [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)] if free_space[x, y]]
@@ -289,10 +290,9 @@ def find_path(free_space, start, targets, logger=None):
                 frontier.append(neighbor)
                 parent_dict[neighbor] = current
                 dist_so_far[neighbor] = dist_so_far[current] + 1
-    if logger: logger.debug(f'Suitable target found at {best}')
     # Determine the first step towards the best found target tile
     current = best
-    return best_dist
+    return 201
 
     # min_x = max(0, starting_point[0] - 5)
     # max_x = min(16, starting_point[0] + 5)
@@ -480,7 +480,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         for i in range(len(coins)):
             if coins[i][0]!=0:
                 #dis.append(np.linalg.norm(np.asarray(player)-np.asarray(coins[i])))
-                path_it = find_path(game_state["field"] == 0, tuple(player),[tuple(coins[i])])
+                path_it = find_path(self, game_state["field"] == 0, tuple(player),[tuple(coins[i])])
                 
                 coin_distance.append(path_it)
             else:
@@ -544,7 +544,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         # safe_space_distance=[]
         # maximal_iteration = 1000
         
-        closest_spot = find_path(field == 0, tuple(player), test_s)          
+        closest_spot = find_path(self, field == 0, tuple(player), test_s)          
             
             # if path_iter < maximal_iteration:
 
@@ -626,7 +626,7 @@ def state_to_features(self, game_state: dict) -> np.array:
 
                 #we need to virtually remove the crate to make the find_path function work
             field[minimal_crate[0],minimal_crate[1]] = 0
-            minimal_crate_distance = find_path(field == 0, tuple(player), [tuple(minimal_crate)]) #safe computation time by only calulating the euclidian closest 
+            minimal_crate_distance = find_path(self, field == 0, tuple(player), [tuple(minimal_crate)]) #safe computation time by only calulating the euclidian closest 
             field[minimal_crate[0],minimal_crate[1]] = 1
 
             assert minimal_crate_distance != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
