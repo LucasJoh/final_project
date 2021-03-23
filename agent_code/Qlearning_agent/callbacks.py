@@ -30,7 +30,7 @@ def setup(self):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
         #self.model = np.concatenate((np.full(11,0.1),np.full(5,0.01)))
-        self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.01,0.01,0.05])
+        self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.01,0.01, 0.05])
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -572,10 +572,10 @@ def state_to_features(self, game_state: dict) -> np.array:
         
         # closest_spot = min(safe_space_distance)
 
-        if len(safe_space_distance)!=0:
-            closest_spot = min(safe_space_distance)
-        else:
-            closest_spot = np.min(free_s_distances)
+        # if len(safe_space_distance)!=0:
+        #     closest_spot = min(safe_space_distance)
+        # else:
+        #     closest_spot = np.min(free_s_distances)
     
         #closest_spot = np.min(free_s_distances) #part of upspeeding
     
