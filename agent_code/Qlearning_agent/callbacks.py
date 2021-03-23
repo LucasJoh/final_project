@@ -50,6 +50,7 @@ def q_hat(self,S,A,w):
     :return: float
     """
     
+    self.logger.debug(f"CHECKING ACTION {A}")
     S_temp=copy.deepcopy(S) ###avoid bug caused by shallow-copy (.copy())
     p = S_temp['self']
     f = S_temp['field']
@@ -78,7 +79,7 @@ def q_hat(self,S,A,w):
     # self.logger.debug(f"w:,{w}")
     #print("X:",A,X)
     #print("w:",w)
-
+    self.logger.debug(f"X: {X}")
     assert len(w)==len(X)
     return w@X
 
@@ -109,10 +110,10 @@ def act(self, game_state: dict) -> str:
         greedy_ind = np.argmax(tester)
         greedy=ACTIONS[greedy_ind]
     
-    print("A",np.array([q_hat(self,S,a,w) for a in ACTIONS]))
-    print("w", w)
-    print(greedy)
-          
+    # print("A",np.array([q_hat(self,S,a,w) for a in ACTIONS]))
+    # print("w", w)
+    # print(greedy)
+    self.logger.debug(f"DOING ACTION: {greedy}")
     #Exploration vs exploitation
     # definie hyperparameter for epsilon-greedy-policy (lecture 2, p.3)
     epsilon = 0.01
@@ -279,8 +280,8 @@ def find_path(self, free_space, start, targets):
         if d == 0:
             # Found path to a target's exact position, mission accomplished!
             best = current
-            self.logger.debug(f"'Suitable target found at {best}")
-            return best_dist
+            self.logger.debug(f"'Suitable target found at {best} with distance {best_dist}")
+            break
         # Add unexplored free neighboring tiles to the queue in a random order
         x, y = current
         neighbors = [(x, y) for (x, y) in [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)] if free_space[x, y]]
@@ -470,9 +471,10 @@ def state_to_features(self, game_state: dict) -> np.array:
         for i in range(l2):
             coins.append((0,0))
     
-
+    # self.logger.debug(f"{game_state['field'] == 0}")
     ###Feature 1: Define continous potential but avoid 1/r with r->0
     coin_distance=[]
+    self.logger.debug(f"searching for coins!")
     
     if (coins == None) or (coins == []): #if there are no coins to collect, we don't want to be confused
         coin_distance=[200 for i in range(9)]
@@ -503,6 +505,7 @@ def state_to_features(self, game_state: dict) -> np.array:
 
     ###Feature 2: look for next safe_space
 
+    self.logger.debug(f"Looking for safe spaces!")
     field = np.copy(game_state['field'])
 
     closest_spot = 200
@@ -544,7 +547,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         # safe_space_distance=[]
         # maximal_iteration = 1000
         
-        closest_spot = find_path(self, field == 0, tuple(player), test_s)          
+        closest_spot = find_path(self, game_state["field"] == 0, tuple(player), test_s)          
             
             # if path_iter < maximal_iteration:
 
@@ -592,7 +595,7 @@ def state_to_features(self, game_state: dict) -> np.array:
 
 
     ###Feature 4: Check how many crates are next to the agent
-
+    self.logger.debug(f"checking for crates!")
     if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
 
         spaces_around_agent = [[player[0]+1,player[1]],[player[0]-1,player[1]],[player[0],player[1]+1],[player[0],player[1]-1]]
@@ -608,6 +611,7 @@ def state_to_features(self, game_state: dict) -> np.array:
 
     ###Feature 5: Find next crate
 
+    self.logger.debug(f"Finding next crate!")
     field=np.copy(game_state['field'])
     crate_indices = np.argwhere(field==1) #find all crates on the field
     player = np.asarray(game_state['self'][3])
@@ -630,6 +634,8 @@ def state_to_features(self, game_state: dict) -> np.array:
             field[minimal_crate[0],minimal_crate[1]] = 1
 
             assert minimal_crate_distance != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
+
+            inverted_minimal_crate_distance = 1/minimal_crate_distance
 
             if  minimal_crate_distance == 200: #the euclidian next crate is not reachable, therefore we ignore him this round
                 inverted_minimal_crate_distance = 0
