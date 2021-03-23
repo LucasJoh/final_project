@@ -559,6 +559,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         # maximal_iteration = 1000
         
         closest_spot = find_path(self, game_state["field"] == 0, tuple(player), test_s)          
+
             
             # if path_iter < maximal_iteration:
 
@@ -567,8 +568,11 @@ def state_to_features(self, game_state: dict) -> np.array:
 
         
         # closest_spot = min(safe_space_distance)
-        
-        #closest_spot = np.min(free_s_distances) #part of upspeeding
+
+        if len(safe_space_distance)!=0:
+            closest_spot = min(safe_space_distance)
+        else:
+            closest_spot = np.min(free_s_distances) #part of upspeeding
     
     if closest_spot==0 and game_state['bombs']!=[]:
         inverted_closest_spot=2
