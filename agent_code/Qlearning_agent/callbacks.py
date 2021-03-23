@@ -2,6 +2,7 @@ import os
 import pickle
 import random
 import heapq
+from random import shuffle
 
 
 import numpy as np
@@ -49,6 +50,7 @@ def q_hat(self,S,A,w):
     :return: float
     """
     
+    self.logger.debug(f"CHECKING ACTION {A}")
     S_temp=copy.deepcopy(S) ###avoid bug caused by shallow-copy (.copy())
     p = S_temp['self']
     f = S_temp['field']
@@ -73,11 +75,11 @@ def q_hat(self,S,A,w):
     
     X=state_to_features(self, S_temp)
     
-    self.logger.debug(f"X:,{A},{X}")
-    self.logger.debug(f"w:,{w}")
+    # self.logger.debug(f"X:,{A},{X}")
+    # self.logger.debug(f"w:,{w}")
     #print("X:",A,X)
     #print("w:",w)
-
+    self.logger.debug(f"X: {X}")
     assert len(w)==len(X)
     return w@X
 
@@ -108,10 +110,10 @@ def act(self, game_state: dict) -> str:
         greedy_ind = np.argmax(tester)
         greedy=ACTIONS[greedy_ind]
     
-    #print("A",np.array([q_hat(S,a,w) for a in ACTIONS]))
-    #print("w", w)
-    #print(greedy)
-          
+    # print("A",np.array([q_hat(self,S,a,w) for a in ACTIONS]))
+    # print("w", w)
+    # print(greedy)
+    self.logger.debug(f"DOING ACTION: {greedy}")
     #Exploration vs exploitation
     # definie hyperparameter for epsilon-greedy-policy (lecture 2, p.3)
     epsilon = 0.01
@@ -230,7 +232,7 @@ def dijkstra(graph, weights, start, destination):
     return path, length
 
 #TODO speed that function up, maybe there is a special algorithm that fits better for that challenge @Laurin
-def find_path(self, starting_point, end_point, field):
+# def find_path(self, start, target, free_tiles):
     """
     Inserting starting and end point and the underlaying field as an array.
     Gives back the amount of steps that have to be taken, False if there is no path or True if starting point equals end point.
@@ -242,73 +244,144 @@ def find_path(self, starting_point, end_point, field):
 
     :return: the amount of steps that have to be taken as int
     """
-    
-    if starting_point[0] != 0 or end_point[0] != 0:
 
-        if starting_point[0]==end_point[0] and starting_point[1]==end_point[1]: #catch that easy case before looping
-            self.logger.debug(f"How did I get here")
-            return 0
+def find_path(self, free_space, start, targets):
+    """Find direction of closest target that can be reached via free tiles.
 
-        start = (starting_point[0] - 1) * 15 + starting_point[1] - 1
-        end = (end_point[0] - 1) * 15 + end_point[1] - 1
-    
-        valid_fields = np.argwhere(field == 0)
-        valid_nodes = []
-        for tile in valid_fields:
-            valid_nodes.append((tile[0] - 1) * 15 + tile[1] - 1)
-        
+    Performs a breadth-first search of the reachable free tiles until a target is encountered.
+    If no target can be reached, the path that takes the agent closest to any target is chosen.
 
-        nodes = []
-        for i in range(15):
-            for j in range(15):
-                nodes.append(15*i + j)
+    Args:
+        free_space: Boolean numpy array. True for free tiles and False for obstacles.
+        start: the coordinate from which to begin the search.
+        targets: list or array holding the coordinates of all target tiles.
+        logger: optional logger object for debugging.
+    Returns:
+        coordinate of first step towards closest target or towards tile closest to any target.
+    """
+    if len(targets) == 0: return None
 
-        graph = [None] * len(nodes)
+    if len(targets) == 1 and targets[0][0] == 0:
+        return 200
+    if is_in(start, targets):
+        return 0
+    frontier = [start]
+    parent_dict = {start: start}
+    dist_so_far = {start: 0}
+    best = start
+    best_dist = np.sum(np.abs(np.subtract(targets, start)), axis=1).min()
 
-        weights = {}
-        
-        
-        for node in nodes:
-            new_node = node + 1
-            if new_node in valid_nodes:
-                if graph[node] == None:
-                    graph[node] = []
-                weights[(node, new_node)] = 1
-                graph[node].append(new_node)
-            
-            new_node = node - 1
-            if new_node in valid_nodes:
-                if graph[node] == None:
-                    graph[node] = []
-                weights[(node, new_node)] = 1
-                graph[node].append(new_node)
-            
-
-            new_node = node + 15
-            if new_node in valid_nodes:
-                if graph[node] == None:
-                    graph[node] = []
-                weights[(node, new_node)] = 1
-                graph[node].append(new_node)
-                
-            new_node = node - 15
-            if new_node in valid_nodes:
-                if graph[node] == None:
-                    graph[node] = []
-                weights[(node, new_node)] = 1
-                graph[node].append(new_node)
-
-        self.logger.debug(f"{graph}")
-        self.logger.debug(f"{weights}")
-        path, length = dijkstra(graph, weights, start, end)
-
-        if length != None:
-            self.logger.debug(f"{length}")
-            return length
-        else:
-            return 200
-    else:
+    while len(frontier) > 0:
+        current = frontier.pop(0)
+        # Find distance from current position to all targets, track closest
+        d = np.sum(np.abs(np.subtract(targets, current)), axis=1).min()
+        if d + dist_so_far[current] <= best_dist:
+            best = current
+            best_dist = d + dist_so_far[current]
+        if d == 0:
+            # Found path to a target's exact position, mission accomplished!
+            best = current
+            break
+        # Add unexplored free neighboring tiles to the queue in a random order
+        x, y = current
+        neighbors = [(x, y) for (x, y) in [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)] if free_space[x, y]]
+        shuffle(neighbors)
+        for neighbor in neighbors:
+            if neighbor not in parent_dict:
+                frontier.append(neighbor)
+                parent_dict[neighbor] = current
+                dist_so_far[neighbor] = dist_so_far[current] + 1
+    # Determine the first step towards the best found target tile
+    current = best
+    if is_in(best, targets) == False:
+        self.logger.debug(f"No target found")
         return 201
+
+    counter = 0
+    while True:
+        counter += 1
+        if parent_dict[current] == start: 
+            self.logger.debug(f"Found target {best} with a distance of {counter}")
+            return counter
+        current = parent_dict[current]
+
+
+    # min_x = max(0, starting_point[0] - 5)
+    # max_x = min(16, starting_point[0] + 5)
+    # min_y = max(0, starting_point[1] - 5)
+    # max_y = min(16, starting_point[1] + 5)
+
+    # if starting_point[0] != 0 or end_point[0] != 0:
+
+    #     if starting_point[0]==end_point[0] and starting_point[1]==end_point[1]: #catch that easy case before looping
+    #         self.logger.debug(f"How did I get here")
+    #         return 0
+
+    #     start = (starting_point[0] - 1) * 15 + starting_point[1] - 1
+    #     end = (end_point[0] - 1) * 15 + end_point[1] - 1
+    
+    #     valid_fields = np.argwhere(field == 0)
+    #     valid_nodes = []
+    #     for tile in valid_fields:
+    #         if min_x < tile[0] and max_x > tile[0] and min_y < tile[1] and max_y > tile[1]:
+    #             valid_nodes.append((tile[0] - 1) * 15 - min_x + tile[1] - 1 - min_y)
+        
+
+    #     nodes = []
+    #     for i in range(max_x + 1 - min_x):
+    #         for j in range(max_y + 1 - min_y):
+    #             nodes.append(i * (max_x - min_x) + j)
+
+    #     graph = [None] * len(nodes)
+
+    #     weights = {}
+        
+    #     self.logger.debug(f"{valid_nodes}")
+    #     self.logger.debug(f"{nodes}")
+
+    #     for node in valid_nodes:
+    #         new_node = node + 1
+    #         if new_node in valid_nodes:
+    #             if graph[node] == None:
+    #                 graph[node] = []
+    #             weights[(node, new_node)] = 1
+    #             graph[node].append(new_node)
+            
+    #         new_node = node - 1
+    #         if new_node in valid_nodes:
+    #             if graph[node] == None:
+    #                 graph[node] = []
+    #             weights[(node, new_node)] = 1
+    #             graph[node].append(new_node)
+            
+
+    #         new_node = node + max_y - min_y
+    #         if new_node in valid_nodes:
+    #             if graph[node] == None:
+    #                 graph[node] = []
+    #             weights[(node, new_node)] = 1
+    #             graph[node].append(new_node)
+                
+    #         new_node = node - max_y + min_y
+    #         if new_node in valid_nodes:
+    #             if graph[node] == None:
+    #                 graph[node] = []
+    #             weights[(node, new_node)] = 1
+    #             graph[node].append(new_node)
+
+    #     self.logger.debug(f"{graph}")
+    #     self.logger.debug(f"{weights}")
+    #     path, length = dijkstra(graph, weights, start, end)
+
+    #     if length != None:
+    #         self.logger.debug(f"{length}")
+    #         return length
+    #     else:
+    #         return 200
+    # else:
+    #     return 201
+
+    ##################
 
 
 
@@ -409,9 +482,10 @@ def state_to_features(self, game_state: dict) -> np.array:
         for i in range(l2):
             coins.append((0,0))
     
-
+    # self.logger.debug(f"{game_state['field'] == 0}")
     ###Feature 1: Define continous potential but avoid 1/r with r->0
     coin_distance=[]
+    self.logger.debug(f"searching for coins!")
     
     if (coins == None) or (coins == []): #if there are no coins to collect, we don't want to be confused
         coin_distance=[200 for i in range(9)]
@@ -419,7 +493,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         for i in range(len(coins)):
             if coins[i][0]!=0:
                 #dis.append(np.linalg.norm(np.asarray(player)-np.asarray(coins[i])))
-                path_it = find_path(self, np.asarray(player),np.asarray(coins[i]), game_state['field'])
+                path_it = find_path(self, game_state["field"] == 0, tuple(player),[tuple(coins[i])])
                 
                 coin_distance.append(path_it)
             else:
@@ -442,6 +516,7 @@ def state_to_features(self, game_state: dict) -> np.array:
 
     ###Feature 2: look for next safe_space
 
+    self.logger.debug(f"Looking for safe spaces!")
     field = np.copy(game_state['field'])
 
     closest_spot = 200
@@ -474,20 +549,26 @@ def state_to_features(self, game_state: dict) -> np.array:
         test_s = []
         ###To speed training up I worked with euclidian distances, as soon as Laurin has optimized find_path we can rechange that
         
+        
         #just consider near spaces (otherwise it would take to long)
         for i in range(len(free_s_distances)):
-            if free_s_distances[i]<=2:
-                test_s.append(free_s[i])
-        safe_space_distance=[]
-        maximal_iteration =1000
-        for s in test_s:
-            path_iter = find_path(self, np.asarray(player),s, game_state['field'])          
-            
-            if path_iter < maximal_iteration:
+            if free_s_distances[i]<=6:
+                test_s.append(tuple(free_s[i]))
 
-                safe_space_distance.append(path_iter) 
-                maximal_iteration=path_iter #we are only interessted in better choice, therefore we can speed calculation up
+        # safe_space_distance=[]
+        # maximal_iteration = 1000
         
+        closest_spot = find_path(self, game_state["field"] == 0, tuple(player), test_s)          
+
+            
+            # if path_iter < maximal_iteration:
+
+            #     safe_space_distance.append(path_iter) 
+            #     maximal_iteration=path_iter #we are only interessted in better choice, therefore we can speed calculation up
+
+        
+        # closest_spot = min(safe_space_distance)
+
         if len(safe_space_distance)!=0:
             closest_spot = min(safe_space_distance)
         else:
@@ -529,7 +610,7 @@ def state_to_features(self, game_state: dict) -> np.array:
 
 
     ###Feature 4: Check how many crates are next to the agent
-
+    self.logger.debug(f"checking for crates!")
     if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
 
         spaces_around_agent = [[player[0]+1,player[1]],[player[0]-1,player[1]],[player[0],player[1]+1],[player[0],player[1]-1]]
@@ -545,6 +626,7 @@ def state_to_features(self, game_state: dict) -> np.array:
 
     ###Feature 5: Find next crate
 
+    self.logger.debug(f"Finding next crate!")
     field=np.copy(game_state['field'])
     crate_indices = np.argwhere(field==1) #find all crates on the field
     player = np.asarray(game_state['self'][3])
@@ -563,10 +645,12 @@ def state_to_features(self, game_state: dict) -> np.array:
 
                 #we need to virtually remove the crate to make the find_path function work
             field[minimal_crate[0],minimal_crate[1]] = 0
-            minimal_crate_distance = find_path(self, player, minimal_crate, field) #safe computation time by only calulating the euclidian closest 
+            minimal_crate_distance = find_path(self, field == 0, tuple(player), [tuple(minimal_crate)]) #safe computation time by only calulating the euclidian closest 
             field[minimal_crate[0],minimal_crate[1]] = 1
 
             assert minimal_crate_distance != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
+
+            inverted_minimal_crate_distance = 1/minimal_crate_distance
 
             if  minimal_crate_distance == 200: #the euclidian next crate is not reachable, therefore we ignore him this round
                 inverted_minimal_crate_distance = 0
