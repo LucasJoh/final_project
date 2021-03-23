@@ -263,7 +263,8 @@ def find_path(self, free_space, start, targets):
 
     if len(targets) == 1 and targets[0][0] == 0:
         return 200
-
+    if is_in(start, targets):
+        return 0
     frontier = [start]
     parent_dict = {start: start}
     dist_so_far = {start: 0}
@@ -280,7 +281,6 @@ def find_path(self, free_space, start, targets):
         if d == 0:
             # Found path to a target's exact position, mission accomplished!
             best = current
-            self.logger.debug(f"'Suitable target found at {best} with distance {best_dist}")
             break
         # Add unexplored free neighboring tiles to the queue in a random order
         x, y = current
@@ -293,7 +293,18 @@ def find_path(self, free_space, start, targets):
                 dist_so_far[neighbor] = dist_so_far[current] + 1
     # Determine the first step towards the best found target tile
     current = best
-    return 201
+    if is_in(best, targets) == False:
+        self.logger.debug(f"No target found")
+        return 201
+
+    counter = 0
+    while True:
+        counter += 1
+        if parent_dict[current] == start: 
+            self.logger.debug(f"Found target {best} with a distance of {counter}")
+            return counter
+        current = parent_dict[current]
+
 
     # min_x = max(0, starting_point[0] - 5)
     # max_x = min(16, starting_point[0] + 5)
