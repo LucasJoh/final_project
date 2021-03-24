@@ -49,7 +49,9 @@ def look_for_targets(free_space, start, targets, logger=None):
     if logger: logger.debug(f'Suitable target found at {best}')
     # Determine the first step towards the best found target tile
     current = best
-    return best_dist
+    while True:
+        if parent_dict[current] == start: return best_dist
+        current = parent_dict[current]
 
 
 def setup(self):
