@@ -646,18 +646,21 @@ def state_to_features(self, game_state: dict) -> np.array:
 
     minimal_index=False
     
+    p = np.full_like(crate_indices,player)
+    diff=np.linalg.norm(p-crate_indices,axis=1)
+
     for i in range(3):
         
         #and game_state['self'][2]==True
         if len(crate_indices)!=0: #if there are no crates we can't find any distances
-
-            p = np.full_like(crate_indices,player)
-            diff=np.linalg.norm(p-crate_indices,axis=1)
+ 
             minimal_index = np.argmin(diff)
             
             minimal_crate = crate_indices[minimal_index]
+            self.logger.debug(f"{crate_indices}")
+            self.logger.debug(f"{minimal_crate}")
 
-                #we need to virtually remove the crate to make the find_path function work
+            #we need to virtually remove the crate to make the find_path function work
             field[minimal_crate[0],minimal_crate[1]] = 0
             minimal_crate_distance = find_path(self, field == 0, tuple(player), [tuple(minimal_crate)]) #safe computation time by only calulating the euclidian closest 
             field[minimal_crate[0],minimal_crate[1]] = 1
@@ -677,7 +680,8 @@ def state_to_features(self, game_state: dict) -> np.array:
 
             features.append(inverted_minimal_crate_distance)
                 
-            crate_indices[minimal_index][0]=-20
+            diff = np.delete(diff, minimal_index, 0)
+            crate_indices = np.delete(crate_indices, minimal_index, 0)
             
         else:
             features.append(0)                                  
