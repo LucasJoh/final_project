@@ -550,6 +550,7 @@ def state_to_features(self, game_state: dict) -> np.array:
             if field[e[0],e[1]]!=-1:
                 field[e[0],e[1]]=3
 
+        
         #now all spaces with entry 0 are safe spaces for the current state
         free_s = np.argwhere(field==0)
         pos = np.full_like(free_s,np.asarray(player))
@@ -566,8 +567,11 @@ def state_to_features(self, game_state: dict) -> np.array:
 
         # safe_space_distance=[]
         # maximal_iteration = 1000
+        valid_fields = copy.deepcopy(game_state["field"])
+        for other in game_state["others"]:
+            valid_fields[other[3][0], other[3][1]] = 1
         
-        closest_spot = find_path(self, game_state["field"] == 0, tuple(player), test_s)          
+        closest_spot = find_path(self, valid_fields == 0, tuple(player), test_s)          
 
             
             # if path_iter < maximal_iteration:

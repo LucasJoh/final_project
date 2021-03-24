@@ -6,9 +6,9 @@
 - [x] change existing crate feature to an 1v1-feature (Lucas)
 - [x] design graphic for logo and bomb (Lucas)
 - [x] fasten up the new algorithm (Laurin)
-- [ ] delete bugs in in_range (Laurin)
-- [ ] fix bug with missing distances for crates 2 and 3
-- [ ] fix bug with missing entry in safe-space-map of other players
+- [x] delete bugs in in_range (Laurin)
+- [x] fix bug with missing distances for crates 2 and 3
+- [x] fix bug with missing entry in safe-space-map of other players
 - [ ] think of good 1v1 features (Laurin,Lucas)
 - [ ] find best algorithm to learn (Simon)
 - [ ] find a good way to handle learning hyperparameter (Simon)
