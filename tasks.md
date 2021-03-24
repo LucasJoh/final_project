@@ -1,13 +1,18 @@
 # Further tasks
 - [x] fix bugs with trapped crates (Lucas)
-- [ ] fix problems with agent dropping a bomb too fast (Lucas)
-- [ ] overthink next_crate feature: maybe augment number of features (Lucas)
-- [ ] optimize the find_path function in callbacks.py (Laurin)
+- [x] fix problems with agent dropping a bomb too fast (Lucas)
+- [x] overthink next_crate feature: maybe augment number of features (Lucas)
+- [x] optimize the find_path function in callbacks.py (Laurin)
+- [x] change existing crate feature to an 1v1-feature (Lucas)
+- [x] design graphic for logo and bomb (Lucas)
+- [x] fasten up the new algorithm (Laurin)
 - [ ] delete bugs in in_range (Laurin)
-- [ ] think of good 1v1 features (Laurin)
+- [ ] fix bug with missing distances for crates 2 and 3
+- [ ] fix bug with missing entry in safe-space-map of other players
+- [ ] think of good 1v1 features (Laurin,Lucas)
 - [ ] find best algorithm to learn (Simon)
 - [ ] find a good way to handle learning hyperparameter (Simon)
 - [ ] add helpful events
 - [ ] add new features concerning 1v1 against other agents
 - [ ] find bugs in existing code
-- [ ] design graphic for logo and bomb
+- [ ] check latex-templete in Heibox and start writing your part

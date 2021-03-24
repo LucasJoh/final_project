@@ -1,7 +1,7 @@
 import os
 import pickle
-import random
 import heapq
+from random import shuffle
 
 
 import numpy as np
@@ -29,7 +29,7 @@ def setup(self):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
         #self.model = np.concatenate((np.full(11,0.1),np.full(5,0.01)))
-        self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.01,0.01,0.01,0.01])
+        self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.005,0.0025, 0.05525])
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -49,6 +49,7 @@ def q_hat(self,S,A,w):
     :return: float
     """
     
+    self.logger.debug(f"CHECKING ACTION {A}")
     S_temp=copy.deepcopy(S) ###avoid bug caused by shallow-copy (.copy())
     p = S_temp['self']
     f = S_temp['field']
@@ -75,7 +76,9 @@ def q_hat(self,S,A,w):
     
     # self.logger.debug(f"X:,{A},{X}")
     # self.logger.debug(f"w:,{w}")
-
+    #print("X:",A,X)
+    #print("w:",w)
+    self.logger.debug(f"X: {X}")
     assert len(w)==len(X)
     return w@X
 
@@ -106,10 +109,12 @@ def act(self, game_state: dict) -> str:
         greedy_ind = np.argmax(tester)
         greedy=ACTIONS[greedy_ind]
     
-    print("A",np.array([q_hat(self,S,a,w) for a in ACTIONS]))
-    print("w", w)
-    print(greedy)
-          
+
+
+    # print("A",np.array([q_hat(self,S,a,w) for a in ACTIONS]))
+    # print("w", w)
+    # print(greedy)
+    self.logger.debug(f"DOING ACTION: {greedy}")
     #Exploration vs exploitation
     # definie hyperparameter for epsilon-greedy-policy (lecture 2, p.3)
     # epsilon = 0.01
@@ -123,50 +128,57 @@ def act(self, game_state: dict) -> str:
     return greedy
 
 #TODO: not sure if there is a bug that explosions are reaching through walls in this function, might be good to check someday
-def in_range(bomb, player=None):
+def in_range(bomb, field = [[None]], player=None):
     """
     evaluates where a bomb is possibly threatening. 
     If a players and a bombs position are given it returns whether the player is in range of an exploding bomb.
     If player is not given, it returns an array with all threatend spaces.
 
+    :param field: 2D-array True for free tiles False elsewhere
     :param bomb: list, array or tuple with 2D-coordinates of the bomb
     :param player (optional): list, array or tuple with 2D-coordinates of the agent
 
     :return: bool or list, depending on arguments handed in
     """
-    if player != None:
-        
-        ###initialize list of coordinates that are in bomb range
-        bomb_range=[[bomb[0],bomb[1]],]
 
+    ###initialize list of coordinates that are in bomb range
+    bomb_range=[[bomb[0],bomb[1]],]
+    if field[0][0] != None:
+        
+        if field[bomb[0] + 1,bomb[1]] == True:
+            for i in range(1,4):
+                bomb_range.append([bomb[0] + i,bomb[1]])
+
+        if field[bomb[0],bomb[1] + 1] == True:
+            for i in range(1,4):
+                bomb_range.append([bomb[0],bomb[1] + i])
+        
+        if field[bomb[0] - 1,bomb[1]] == True:
+            for i in range(1,4):
+                bomb_range.append([bomb[0] - i,bomb[1]])
+
+        if field[bomb[0],bomb[1] - 1] == True:
+            for i in range(1,4):
+                bomb_range.append([bomb[0],bomb[1] - i])
+
+    else:
         for i in range(1,4):
             bomb_range.append([bomb[0]+i,bomb[1]])
             bomb_range.append([bomb[0]-i,bomb[1]])
             bomb_range.append([bomb[0],bomb[1]+i])
             bomb_range.append([bomb[0],bomb[1]-i])
-        
-        assert len(bomb_range)==13 
+    
 
-        bombs = np.array(bomb_range)
+    bombs = np.array(bomb_range)
+
+    if player != None:
         p = np.asarray(player)
         in_range = [np.all(b==p) for b in bombs]
 
         return np.any(np.array(in_range)==True)
-    else:
-        ###initialize list of coordinates that are in bomb range
-        bomb_range=[[bomb[0],bomb[1]],]
 
-        for i in range(1,4):
-            bomb_range.append([bomb[0]+i,bomb[1]])
-            bomb_range.append([bomb[0]-i,bomb[1]])
-            bomb_range.append([bomb[0],bomb[1]+i])
-            bomb_range.append([bomb[0],bomb[1]-i])
-        
-        assert len(bomb_range)==13
 
-        bombs = np.array(bomb_range)
-
-        return bombs
+    return bombs
 
 
 def is_in(point, point_list, index=False):
@@ -228,7 +240,7 @@ def dijkstra(graph, weights, start, destination):
     return path, length
 
 #TODO speed that function up, maybe there is a special algorithm that fits better for that challenge @Laurin
-def find_path(self, starting_point, end_point, field):
+# def find_path(self, start, target, free_tiles):
     """
     Inserting starting and end point and the underlaying field as an array.
     Gives back the amount of steps that have to be taken, False if there is no path or True if starting point equals end point.
@@ -240,73 +252,144 @@ def find_path(self, starting_point, end_point, field):
 
     :return: the amount of steps that have to be taken as int
     """
-    
-    if starting_point[0] != 0 or end_point[0] != 0:
 
-        if starting_point[0]==end_point[0] and starting_point[1]==end_point[1]: #catch that easy case before looping
-            self.logger.debug(f"How did I get here")
-            return 0
+def find_path(self, free_space, start, targets):
+    """Find direction of closest target that can be reached via free tiles.
 
-        start = (starting_point[0] - 1) * 15 + starting_point[1] - 1
-        end = (end_point[0] - 1) * 15 + end_point[1] - 1
-    
-        valid_fields = np.argwhere(field == 0)
-        valid_nodes = []
-        for tile in valid_fields:
-            valid_nodes.append((tile[0] - 1) * 15 + tile[1] - 1)
-        
+    Performs a breadth-first search of the reachable free tiles until a target is encountered.
+    If no target can be reached, the path that takes the agent closest to any target is chosen.
 
-        nodes = []
-        for i in range(15):
-            for j in range(15):
-                nodes.append(15*i + j)
+    Args:
+        free_space: Boolean numpy array. True for free tiles and False for obstacles.
+        start: the coordinate from which to begin the search.
+        targets: list or array holding the coordinates of all target tiles.
+        logger: optional logger object for debugging.
+    Returns:
+        coordinate of first step towards closest target or towards tile closest to any target.
+    """
+    if len(targets) == 0: return None
 
-        graph = [None] * len(nodes)
+    if len(targets) == 1 and targets[0][0] == 0:
+        return 200
+    if is_in(start, targets):
+        return 0
+    frontier = [start]
+    parent_dict = {start: start}
+    dist_so_far = {start: 0}
+    best = start
+    best_dist = np.sum(np.abs(np.subtract(targets, start)), axis=1).min()
 
-        weights = {}
-        
-        
-        for node in nodes:
-            new_node = node + 1
-            if new_node in valid_nodes:
-                if graph[node] == None:
-                    graph[node] = []
-                weights[(node, new_node)] = 1
-                graph[node].append(new_node)
-            
-            new_node = node - 1
-            if new_node in valid_nodes:
-                if graph[node] == None:
-                    graph[node] = []
-                weights[(node, new_node)] = 1
-                graph[node].append(new_node)
-            
-
-            new_node = node + 15
-            if new_node in valid_nodes:
-                if graph[node] == None:
-                    graph[node] = []
-                weights[(node, new_node)] = 1
-                graph[node].append(new_node)
-                
-            new_node = node - 15
-            if new_node in valid_nodes:
-                if graph[node] == None:
-                    graph[node] = []
-                weights[(node, new_node)] = 1
-                graph[node].append(new_node)
-
-        self.logger.debug(f"{graph}")
-        self.logger.debug(f"{weights}")
-        path, length = dijkstra(graph, weights, start, end)
-
-        if length != None:
-            self.logger.debug(f"{length}")
-            return length
-        else:
-            return 200
-    else:
+    while len(frontier) > 0:
+        current = frontier.pop(0)
+        # Find distance from current position to all targets, track closest
+        d = np.sum(np.abs(np.subtract(targets, current)), axis=1).min()
+        if d + dist_so_far[current] <= best_dist:
+            best = current
+            best_dist = d + dist_so_far[current]
+        if d == 0:
+            # Found path to a target's exact position, mission accomplished!
+            best = current
+            break
+        # Add unexplored free neighboring tiles to the queue in a random order
+        x, y = current
+        neighbors = [(x, y) for (x, y) in [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)] if free_space[x, y]]
+        shuffle(neighbors)
+        for neighbor in neighbors:
+            if neighbor not in parent_dict:
+                frontier.append(neighbor)
+                parent_dict[neighbor] = current
+                dist_so_far[neighbor] = dist_so_far[current] + 1
+    # Determine the first step towards the best found target tile
+    current = best
+    if is_in(best, targets) == False:
+        self.logger.debug(f"No target found")
         return 201
+
+    counter = 0
+    while True:
+        counter += 1
+        if parent_dict[current] == start: 
+            self.logger.debug(f"Found target {best} with a distance of {counter}")
+            return counter
+        current = parent_dict[current]
+
+
+    # min_x = max(0, starting_point[0] - 5)
+    # max_x = min(16, starting_point[0] + 5)
+    # min_y = max(0, starting_point[1] - 5)
+    # max_y = min(16, starting_point[1] + 5)
+
+    # if starting_point[0] != 0 or end_point[0] != 0:
+
+    #     if starting_point[0]==end_point[0] and starting_point[1]==end_point[1]: #catch that easy case before looping
+    #         self.logger.debug(f"How did I get here")
+    #         return 0
+
+    #     start = (starting_point[0] - 1) * 15 + starting_point[1] - 1
+    #     end = (end_point[0] - 1) * 15 + end_point[1] - 1
+    
+    #     valid_fields = np.argwhere(field == 0)
+    #     valid_nodes = []
+    #     for tile in valid_fields:
+    #         if min_x < tile[0] and max_x > tile[0] and min_y < tile[1] and max_y > tile[1]:
+    #             valid_nodes.append((tile[0] - 1) * 15 - min_x + tile[1] - 1 - min_y)
+        
+
+    #     nodes = []
+    #     for i in range(max_x + 1 - min_x):
+    #         for j in range(max_y + 1 - min_y):
+    #             nodes.append(i * (max_x - min_x) + j)
+
+    #     graph = [None] * len(nodes)
+
+    #     weights = {}
+        
+    #     self.logger.debug(f"{valid_nodes}")
+    #     self.logger.debug(f"{nodes}")
+
+    #     for node in valid_nodes:
+    #         new_node = node + 1
+    #         if new_node in valid_nodes:
+    #             if graph[node] == None:
+    #                 graph[node] = []
+    #             weights[(node, new_node)] = 1
+    #             graph[node].append(new_node)
+            
+    #         new_node = node - 1
+    #         if new_node in valid_nodes:
+    #             if graph[node] == None:
+    #                 graph[node] = []
+    #             weights[(node, new_node)] = 1
+    #             graph[node].append(new_node)
+            
+
+    #         new_node = node + max_y - min_y
+    #         if new_node in valid_nodes:
+    #             if graph[node] == None:
+    #                 graph[node] = []
+    #             weights[(node, new_node)] = 1
+    #             graph[node].append(new_node)
+                
+    #         new_node = node - max_y + min_y
+    #         if new_node in valid_nodes:
+    #             if graph[node] == None:
+    #                 graph[node] = []
+    #             weights[(node, new_node)] = 1
+    #             graph[node].append(new_node)
+
+    #     self.logger.debug(f"{graph}")
+    #     self.logger.debug(f"{weights}")
+    #     path, length = dijkstra(graph, weights, start, end)
+
+    #     if length != None:
+    #         self.logger.debug(f"{length}")
+    #         return length
+    #     else:
+    #         return 200
+    # else:
+    #     return 201
+
+    ##################
 
 
 
@@ -407,9 +490,10 @@ def state_to_features(self, game_state: dict) -> np.array:
         for i in range(l2):
             coins.append((0,0))
     
-
+    # self.logger.debug(f"{game_state['field'] == 0}")
     ###Feature 1: Define continous potential but avoid 1/r with r->0
     coin_distance=[]
+    self.logger.debug(f"searching for coins!")
     
     if (coins == None) or (coins == []): #if there are no coins to collect, we don't want to be confused
         coin_distance=[200 for i in range(9)]
@@ -417,7 +501,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         for i in range(len(coins)):
             if coins[i][0]!=0:
                 #dis.append(np.linalg.norm(np.asarray(player)-np.asarray(coins[i])))
-                path_it = find_path(self, np.asarray(player),np.asarray(coins[i]), game_state['field'])
+                path_it = find_path(self, game_state["field"] == 0, tuple(player),[tuple(coins[i])])
                 
                 coin_distance.append(path_it)
             else:
@@ -440,6 +524,7 @@ def state_to_features(self, game_state: dict) -> np.array:
 
     ###Feature 2: look for next safe_space
 
+    self.logger.debug(f"Looking for safe spaces!")
     field = np.copy(game_state['field'])
 
     closest_spot = 200
@@ -451,7 +536,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         #determine all spaces that are currently threatend by a bomb and insert entry 2 in our copy
         for bomb in game_state['bombs']:
             if bomb[1]<=4:
-                bomb_range = in_range(bomb[0])
+                bomb_range = in_range(bomb[0], game_state['field'] == 0)
                 for s in bomb_range:
                     if np.all(s<=16) and np.all(s>=0):
                         if field[s[0],s[1]]!=-1:
@@ -472,23 +557,33 @@ def state_to_features(self, game_state: dict) -> np.array:
         test_s = []
         ###To speed training up I worked with euclidian distances, as soon as Laurin has optimized find_path we can rechange that
         
+        
         #just consider near spaces (otherwise it would take to long)
         for i in range(len(free_s_distances)):
+
             if free_s_distances[i]<=6:
-                test_s.append(free_s[i])
-        safe_space_distance=[]
-        maximal_iteration =1000
-        for s in test_s:
-            path_iter = find_path(self, np.asarray(player),s, game_state['field'])          
+                test_s.append(tuple(free_s[i]))
+
+        # safe_space_distance=[]
+        # maximal_iteration = 1000
+        
+        closest_spot = find_path(self, game_state["field"] == 0, tuple(player), test_s)          
+
             
-            if path_iter < maximal_iteration:
+            # if path_iter < maximal_iteration:
 
-                safe_space_distance.append(path_iter) 
-                maximal_iteration=path_iter #we are only interessted in better choice, therefore we can speed calculation up
+            #     safe_space_distance.append(path_iter) 
+            #     maximal_iteration=path_iter #we are only interessted in better choice, therefore we can speed calculation up
 
         
-        closest_spot = min(safe_space_distance)
-        
+        # closest_spot = min(safe_space_distance)
+
+        # if len(safe_space_distance)!=0:
+        #     closest_spot = min(safe_space_distance)
+        # else:
+
+        #     closest_spot = np.min(free_s_distances)
+    
         #closest_spot = np.min(free_s_distances) #part of upspeeding
     
     if closest_spot==0 and game_state['bombs']!=[]:
@@ -500,7 +595,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         inverted_closest_spot=0
     else:
         inverted_closest_spot=1/closest_spot
-
+    
     features.append(inverted_closest_spot)
 
     
@@ -509,9 +604,9 @@ def state_to_features(self, game_state: dict) -> np.array:
     if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
 
         reachable_crates=0
-        reachable = in_range(player)
+        reachable_spaces = in_range(player)
         
-        for r in reachable:
+        for r in reachable_spaces:
             if np.all(r<=16) and np.all(r>=0):
                 if game_state['field'][r[0],r[1]]==1:
                     reachable_crates+=1
@@ -526,8 +621,9 @@ def state_to_features(self, game_state: dict) -> np.array:
     # features.append(crates)
 
 
-    ###Feature 4: Check how many crates are next to the agent
 
+    ###Feature 3: Check how many crates are next to the agent
+    self.logger.debug(f"checking for crates!")
     if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
 
         spaces_around_agent = [[player[0]+1,player[1]],[player[0]-1,player[1]],[player[0],player[1]+1],[player[0],player[1]-1]]
@@ -541,30 +637,35 @@ def state_to_features(self, game_state: dict) -> np.array:
         features.append(0)
 
 
-    ###Feature 5: Find next crate
+    ###Feature 4: Find next crate
 
+    self.logger.debug(f"Finding next crate!")
     field=np.copy(game_state['field'])
     crate_indices = np.argwhere(field==1) #find all crates on the field
-    player = np.asarray(game_state['self'][3])
+    player = game_state['self'][3]
 
     minimal_index=False
     
-    for i in range(5):
+    for i in range(3):
         
         #and game_state['self'][2]==True
-        if len(crate_indices)!=0 and np.all(crate_indices[:,0]!=-20): #if there are no crates we can't find any distances
+        if len(crate_indices)!=0: #if there are no crates we can't find any distances
 
             p = np.full_like(crate_indices,player)
             diff=np.linalg.norm(p-crate_indices,axis=1)
             minimal_index = np.argmin(diff)
+            
             minimal_crate = crate_indices[minimal_index]
 
                 #we need to virtually remove the crate to make the find_path function work
             field[minimal_crate[0],minimal_crate[1]] = 0
-            minimal_crate_distance = find_path(self, player, minimal_crate, field) #safe computation time by only calulating the euclidian closest 
+            minimal_crate_distance = find_path(self, field == 0, tuple(player), [tuple(minimal_crate)]) #safe computation time by only calulating the euclidian closest 
             field[minimal_crate[0],minimal_crate[1]] = 1
-
+            
+            #minimal_crate_distance=np.min(diff)
             assert minimal_crate_distance != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
+
+            inverted_minimal_crate_distance = 1/minimal_crate_distance
 
             if  minimal_crate_distance == 200: #the euclidian next crate is not reachable, therefore we ignore him this round
                 inverted_minimal_crate_distance = 0
@@ -580,8 +681,29 @@ def state_to_features(self, game_state: dict) -> np.array:
             
         else:
             features.append(0)                                  
+    
+    ###Feature 5: Count threatened opponents by a dropped bomb
+    opponents = game_state['others']
+    
+    if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
 
-    #I kept this distinction between features and channels if a feature augmentation would be neccessary at some point (Sutton, 9.5)
+        reachable_opponents=0
+
+        for enemy in opponents:
+            if is_in(enemy[3], reachable_spaces):
+                reachable_opponents+=1
+        
+        if reachable_opponents==0:
+            inverted_reachable_opponents=0
+        else:
+            inverted_reachable_opponents=reachable_opponents/3
+    else:
+        inverted_reachable_opponents=0
+
+    features.append(inverted_reachable_opponents)
+
+
+     #I kept this distinction between features and channels if a feature augmentation would be neccessary at some point (Sutton, 9.5)
     for feature in features:
         channels.append(feature)
     
@@ -590,5 +712,4 @@ def state_to_features(self, game_state: dict) -> np.array:
     # and return them as a vector
     
     return stacked_channels.reshape(-1)
-    
     
