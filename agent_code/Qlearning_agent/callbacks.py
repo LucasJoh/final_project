@@ -569,10 +569,10 @@ def state_to_features(self, game_state: dict) -> np.array:
         
         # closest_spot = min(safe_space_distance)
 
-        if len(safe_space_distance)!=0:
-            closest_spot = min(safe_space_distance)
-        else:
-            closest_spot = np.min(free_s_distances) #part of upspeeding
+        # if len(safe_space_distance)!=0:
+        #     closest_spot = min(safe_space_distance)
+        # else:
+        #     closest_spot = np.min(free_s_distances) #part of upspeeding
     
     if closest_spot==0 and game_state['bombs']!=[]:
         inverted_closest_spot=2

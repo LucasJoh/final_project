@@ -50,7 +50,7 @@ def look_for_targets(free_space, start, targets, logger=None):
     # Determine the first step towards the best found target tile
     current = best
     while True:
-        if parent_dict[current] == start: return best_dist
+        if parent_dict[current] == start: return current
         current = parent_dict[current]
 
 
