@@ -1,6 +1,5 @@
 import os
 import pickle
-import random
 import heapq
 from random import shuffle
 
@@ -30,7 +29,7 @@ def setup(self):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
         #self.model = np.concatenate((np.full(11,0.1),np.full(5,0.01)))
-        self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.01,0.01,0.01,0.01])
+        self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.005,0.0025, 0.05525])
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -75,6 +74,7 @@ def q_hat(self,S,A,w):
     
     X=state_to_features(self, S_temp)
     
+
     # self.logger.debug(f"X:,{A},{X}")
     # self.logger.debug(f"w:,{w}")
     #print("X:",A,X)
@@ -110,6 +110,7 @@ def act(self, game_state: dict) -> str:
         greedy_ind = np.argmax(tester)
         greedy=ACTIONS[greedy_ind]
     
+
     # print("A",np.array([q_hat(self,S,a,w) for a in ACTIONS]))
     # print("w", w)
     # print(greedy)
@@ -127,50 +128,57 @@ def act(self, game_state: dict) -> str:
     return greedy
 
 #TODO: not sure if there is a bug that explosions are reaching through walls in this function, might be good to check someday
-def in_range(bomb, player=None):
+def in_range(bomb, field = [[None]], player=None):
     """
     evaluates where a bomb is possibly threatening. 
     If a players and a bombs position are given it returns whether the player is in range of an exploding bomb.
     If player is not given, it returns an array with all threatend spaces.
 
+    :param field: 2D-array True for free tiles False elsewhere
     :param bomb: list, array or tuple with 2D-coordinates of the bomb
     :param player (optional): list, array or tuple with 2D-coordinates of the agent
 
     :return: bool or list, depending on arguments handed in
     """
-    if player != None:
-        
-        ###initialize list of coordinates that are in bomb range
-        bomb_range=[[bomb[0],bomb[1]],]
 
+    ###initialize list of coordinates that are in bomb range
+    bomb_range=[[bomb[0],bomb[1]],]
+    if field[0][0] != None:
+        
+        if field[bomb[0] + 1,bomb[1]] == True:
+            for i in range(1,4):
+                bomb_range.append([bomb[0] + i,bomb[1]])
+
+        if field[bomb[0],bomb[1] + 1] == True:
+            for i in range(1,4):
+                bomb_range.append([bomb[0],bomb[1] + i])
+        
+        if field[bomb[0] - 1,bomb[1]] == True:
+            for i in range(1,4):
+                bomb_range.append([bomb[0] - i,bomb[1]])
+
+        if field[bomb[0],bomb[1] - 1] == True:
+            for i in range(1,4):
+                bomb_range.append([bomb[0],bomb[1] - i])
+
+    else:
         for i in range(1,4):
             bomb_range.append([bomb[0]+i,bomb[1]])
             bomb_range.append([bomb[0]-i,bomb[1]])
             bomb_range.append([bomb[0],bomb[1]+i])
             bomb_range.append([bomb[0],bomb[1]-i])
-        
-        assert len(bomb_range)==13 
+    
 
-        bombs = np.array(bomb_range)
+    bombs = np.array(bomb_range)
+
+    if player != None:
         p = np.asarray(player)
         in_range = [np.all(b==p) for b in bombs]
 
         return np.any(np.array(in_range)==True)
-    else:
-        ###initialize list of coordinates that are in bomb range
-        bomb_range=[[bomb[0],bomb[1]],]
 
-        for i in range(1,4):
-            bomb_range.append([bomb[0]+i,bomb[1]])
-            bomb_range.append([bomb[0]-i,bomb[1]])
-            bomb_range.append([bomb[0],bomb[1]+i])
-            bomb_range.append([bomb[0],bomb[1]-i])
-        
-        assert len(bomb_range)==13
 
-        bombs = np.array(bomb_range)
-
-        return bombs
+    return bombs
 
 
 def is_in(point, point_list, index=False):
@@ -528,7 +536,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         #determine all spaces that are currently threatend by a bomb and insert entry 2 in our copy
         for bomb in game_state['bombs']:
             if bomb[1]<=4:
-                bomb_range = in_range(bomb[0])
+                bomb_range = in_range(bomb[0], game_state['field'] == 0)
                 for s in bomb_range:
                     if np.all(s<=16) and np.all(s>=0):
                         if field[s[0],s[1]]!=-1:
@@ -552,6 +560,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         
         #just consider near spaces (otherwise it would take to long)
         for i in range(len(free_s_distances)):
+
             if free_s_distances[i]<=6:
                 test_s.append(tuple(free_s[i]))
 
@@ -572,7 +581,10 @@ def state_to_features(self, game_state: dict) -> np.array:
         # if len(safe_space_distance)!=0:
         #     closest_spot = min(safe_space_distance)
         # else:
-        #     closest_spot = np.min(free_s_distances) #part of upspeeding
+
+        #     closest_spot = np.min(free_s_distances)
+    
+        #closest_spot = np.min(free_s_distances) #part of upspeeding
     
     if closest_spot==0 and game_state['bombs']!=[]:
         inverted_closest_spot=2
@@ -583,7 +595,7 @@ def state_to_features(self, game_state: dict) -> np.array:
         inverted_closest_spot=0
     else:
         inverted_closest_spot=1/closest_spot
-
+    
     features.append(inverted_closest_spot)
 
     
@@ -592,9 +604,9 @@ def state_to_features(self, game_state: dict) -> np.array:
     if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
 
         reachable_crates=0
-        reachable = in_range(player)
+        reachable_spaces = in_range(player)
         
-        for r in reachable:
+        for r in reachable_spaces:
             if np.all(r<=16) and np.all(r>=0):
                 if game_state['field'][r[0],r[1]]==1:
                     reachable_crates+=1
@@ -609,7 +621,8 @@ def state_to_features(self, game_state: dict) -> np.array:
     # features.append(crates)
 
 
-    ###Feature 4: Check how many crates are next to the agent
+
+    ###Feature 3: Check how many crates are next to the agent
     self.logger.debug(f"checking for crates!")
     if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
 
@@ -624,30 +637,32 @@ def state_to_features(self, game_state: dict) -> np.array:
         features.append(0)
 
 
-    ###Feature 5: Find next crate
+    ###Feature 4: Find next crate
 
     self.logger.debug(f"Finding next crate!")
     field=np.copy(game_state['field'])
     crate_indices = np.argwhere(field==1) #find all crates on the field
-    player = np.asarray(game_state['self'][3])
+    player = game_state['self'][3]
 
     minimal_index=False
     
-    for i in range(5):
+    for i in range(3):
         
         #and game_state['self'][2]==True
-        if len(crate_indices)!=0 and np.all(crate_indices[:,0]!=-20): #if there are no crates we can't find any distances
+        if len(crate_indices)!=0: #if there are no crates we can't find any distances
 
             p = np.full_like(crate_indices,player)
             diff=np.linalg.norm(p-crate_indices,axis=1)
             minimal_index = np.argmin(diff)
+            
             minimal_crate = crate_indices[minimal_index]
 
                 #we need to virtually remove the crate to make the find_path function work
             field[minimal_crate[0],minimal_crate[1]] = 0
             minimal_crate_distance = find_path(self, field == 0, tuple(player), [tuple(minimal_crate)]) #safe computation time by only calulating the euclidian closest 
             field[minimal_crate[0],minimal_crate[1]] = 1
-
+            
+            #minimal_crate_distance=np.min(diff)
             assert minimal_crate_distance != 0 #by definition one can't stand on a crate spot. Thus diff can't be 0.
 
             inverted_minimal_crate_distance = 1/minimal_crate_distance
@@ -666,8 +681,29 @@ def state_to_features(self, game_state: dict) -> np.array:
             
         else:
             features.append(0)                                  
+    
+    ###Feature 5: Count threatened opponents by a dropped bomb
+    opponents = game_state['others']
+    
+    if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
 
-    #I kept this distinction between features and channels if a feature augmentation would be neccessary at some point (Sutton, 9.5)
+        reachable_opponents=0
+
+        for enemy in opponents:
+            if is_in(enemy[3], reachable_spaces):
+                reachable_opponents+=1
+        
+        if reachable_opponents==0:
+            inverted_reachable_opponents=0
+        else:
+            inverted_reachable_opponents=reachable_opponents/3
+    else:
+        inverted_reachable_opponents=0
+
+    features.append(inverted_reachable_opponents)
+
+
+     #I kept this distinction between features and channels if a feature augmentation would be neccessary at some point (Sutton, 9.5)
     for feature in features:
         channels.append(feature)
     
@@ -676,5 +712,4 @@ def state_to_features(self, game_state: dict) -> np.array:
     # and return them as a vector
     
     return stacked_channels.reshape(-1)
-    
     
