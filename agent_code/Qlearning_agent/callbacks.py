@@ -29,7 +29,10 @@ def setup(self):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(10)
         #self.model = np.concatenate((np.full(11,0.1),np.full(5,0.01)))
-        self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.005,0.0025, 0.05525])
+        #self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.005,0.0025, 0.05525])
+        #self.model = np.full(15,0.1)
+        #quickstart after training with no crates
+        self.model = np.array([5.09,4.4598,2.7454,2.9469,2.3599,1.7345,0.8671,1.2299,1.871,1.0779,0.1,0.1,0.1,0.1,0.1,0.1,0.1, 0.1])
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -49,7 +52,7 @@ def q_hat(self,S,A,w):
     :return: float
     """
     
-    self.logger.debug(f"CHECKING ACTION {A}")
+    #self.logger.debug(f"CHECKING ACTION {A}")
     S_temp=copy.deepcopy(S) ###avoid bug caused by shallow-copy (.copy())
     p = S_temp['self']
     f = S_temp['field']
@@ -69,7 +72,7 @@ def q_hat(self,S,A,w):
             S_temp['self']=(p[0],p[1],p[2],(p[3][0]-1,p[3][1]))
     if A=='BOMB':
         if p[2]==True:#test if bombing is possible
-            S_temp['bombs'].append((p[3],4))
+            S_temp['bombs'].append((p[3],4)) #4 shows that it is virtual
             S_temp['self']=(p[0],p[1],False,p[3]) ##avoid bug, that after dropping a bomb the agent is able to drop another
     
     X=state_to_features(self, S_temp)
@@ -78,7 +81,7 @@ def q_hat(self,S,A,w):
     # self.logger.debug(f"w:,{w}")
     #print("X:",A,X)
     #print("w:",w)
-    self.logger.debug(f"X: {X}")
+    #self.logger.debug(f"X: {X}")
     assert len(w)==len(X)
     return w@X
 
@@ -117,11 +120,11 @@ def act(self, game_state: dict) -> str:
     self.logger.debug(f"DOING ACTION: {greedy}")
     #Exploration vs exploitation
     # definie hyperparameter for epsilon-greedy-policy (lecture 2, p.3)
-    # epsilon = 0.01
+    epsilon = 0.05
     
-    # if self.train:
-    #     #in training-mode use epsilon-greedy-policy
-    #     return np.random.choice([greedy,np.random.choice(ACTIONS,1)],1,p=[1-epsilon,epsilon])
+    if self.train:
+        #in training-mode use epsilon-greedy-policy
+         return np.random.choice([greedy,np.random.choice(ACTIONS,1)],1,p=[1-epsilon,epsilon])
 
     self.logger.debug("Querying model for action")
     #in game-mode take greedy action
@@ -302,14 +305,14 @@ def find_path(self, free_space, start, targets):
     # Determine the first step towards the best found target tile
     current = best
     if is_in(best, targets) == False:
-        self.logger.debug(f"No target found")
+        #self.logger.debug(f"No target found")
         return 201
 
     counter = 0
     while True:
         counter += 1
         if parent_dict[current] == start: 
-            self.logger.debug(f"Found target {best} with a distance of {counter}")
+            #self.logger.debug(f"Found target {best} with a distance of {counter}")
             return counter
         current = parent_dict[current]
 
@@ -493,7 +496,7 @@ def state_to_features(self, game_state: dict) -> np.array:
     # self.logger.debug(f"{game_state['field'] == 0}")
     ###Feature 1: Define continous potential but avoid 1/r with r->0
     coin_distance=[]
-    self.logger.debug(f"searching for coins!")
+    #self.logger.debug(f"searching for coins!")
     
     if (coins == None) or (coins == []): #if there are no coins to collect, we don't want to be confused
         coin_distance=[200 for i in range(9)]
@@ -524,23 +527,24 @@ def state_to_features(self, game_state: dict) -> np.array:
 
     ###Feature 2: look for next safe_space
 
-    self.logger.debug(f"Looking for safe spaces!")
+    #self.logger.debug(f"Looking for safe spaces!")
     field = np.copy(game_state['field'])
 
-    closest_spot = 200
+    closest_spot = None
 
     #max 4*13=52 iterations, probably won't take to long
     
-    if game_state['bombs']!=[] and  not ((player,4) in game_state['bombs']): #only if bombs are active on the field
+    if game_state['bombs']!=[]: #only if bombs are active on the field
 
         #determine all spaces that are currently threatend by a bomb and insert entry 2 in our copy
         for bomb in game_state['bombs']:
-            if bomb[1]<=4:
-                bomb_range = in_range(bomb[0], game_state['field'] == 0)
-                for s in bomb_range:
-                    if np.all(s<=16) and np.all(s>=0):
-                        if field[s[0],s[1]]!=-1:
-                            field[s[0],s[1]]=2
+            if bomb != (player,4): #don't mind virtual bombs
+                if bomb[1]<=4:
+                    bomb_range = in_range(bomb[0], game_state['field'] == 0)
+                    for s in bomb_range:
+                        if np.all(s<=16) and np.all(s>=0):
+                            if field[s[0],s[1]]!=-1:
+                                field[s[0],s[1]]=2
 
         #determine all spaces that are threatend by a remaining explosion and insert entry 3 in our copy
         explosion_map = game_state['explosion_map']
@@ -590,13 +594,10 @@ def state_to_features(self, game_state: dict) -> np.array:
     
         #closest_spot = np.min(free_s_distances) #part of upspeeding
     
-    if closest_spot==0 and game_state['bombs']!=[]:
+    if closest_spot==0:
         inverted_closest_spot=2
-    elif (player,4) in game_state['bombs']:
-        inverted_closest_spot = 0
-    elif game_state['bombs']==[]:
-        
-        inverted_closest_spot=0
+    elif closest_spot==None:
+        inverted_closest_spot=2
     else:
         inverted_closest_spot=1/closest_spot
     
@@ -627,8 +628,8 @@ def state_to_features(self, game_state: dict) -> np.array:
 
 
     ###Feature 3: Check how many crates are next to the agent
-    self.logger.debug(f"checking for crates!")
-    if (player,4) in game_state['bombs']: #only active if a bomb is dropped by our agent
+    #self.logger.debug(f"checking for crates!")
+    if (player,4) in game_state['bombs'] or (player,3) in game_state['bombs']: #only active if a bomb is dropped by our agent (plus bugfix for training)
 
         spaces_around_agent = [[player[0]+1,player[1]],[player[0]-1,player[1]],[player[0],player[1]+1],[player[0],player[1]-1]]
         field_around_agent = np.array([game_state['field'][space[0]][space[1]] for space in spaces_around_agent])
@@ -643,7 +644,7 @@ def state_to_features(self, game_state: dict) -> np.array:
 
     ###Feature 4: Find next crate
 
-    self.logger.debug(f"Finding next crate!")
+    #self.logger.debug(f"Finding next crate!")
     field=np.copy(game_state['field'])
     crate_indices = np.argwhere(field==1) #find all crates on the field
     player = game_state['self'][3]
@@ -661,8 +662,8 @@ def state_to_features(self, game_state: dict) -> np.array:
             minimal_index = np.argmin(diff)
             
             minimal_crate = crate_indices[minimal_index]
-            self.logger.debug(f"{crate_indices}")
-            self.logger.debug(f"{minimal_crate}")
+            #self.logger.debug(f"{crate_indices}")
+            #self.logger.debug(f"{minimal_crate}")
 
             #we need to virtually remove the crate to make the find_path function work
             field[minimal_crate[0],minimal_crate[1]] = 0
@@ -683,12 +684,14 @@ def state_to_features(self, game_state: dict) -> np.array:
                 inverted_minimal_crate_distance = 1/minimal_crate_distance
 
             features.append(inverted_minimal_crate_distance)
+            features.append(1/np.min(diff))
                 
             diff = np.delete(diff, minimal_index, 0)
             crate_indices = np.delete(crate_indices, minimal_index, 0)
             
         else:
-            features.append(0)                                  
+            features.append(0)  
+            features.append(0)                                
     
     ###Feature 5: Count threatened opponents by a dropped bomb
     opponents = game_state['others']
