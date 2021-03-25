@@ -23,6 +23,7 @@ WELL_PLACED_BOMB = "WELL_PLACED_BOMB"
 BAD_PLACED_BOMB = "BAD_PLACED_BOMB"
 TOWARDS_SAFE_PLACE = "TOWARDS_SAFE_PLACE"
 EARLY_SUICID = "EARLY_SUICID"
+TOWARDS_DANGEROUS_PLACE ="TOWARDS_DANGEROUS_PLACE"
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -95,22 +96,24 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             
         # if (new_features[0]<old_features[0]):
         #     events.append(LOOSING_COIN)
-
         #trigger event that gives good reward for a well-placed bomb in the sense of reached crates
-        if old_features[10]>=(2/13) and self_action=="BOMB":
+        if new_features[10]>=(2/4) and self_action=="BOMB":
             events.append(WELL_PLACED_BOMB)
-        if old_features[10]==0 and self_action=="BOMB":
+        if new_features[10]==0 and self_action=="BOMB":
             events.append(BAD_PLACED_BOMB)
 
-        if old_features[9]<new_features[9]:
+        if old_features[9]<new_features[9] and old_features[9]!=0:
             events.append(TOWARDS_SAFE_PLACE)
+        
+        if old_features[9]>new_features[9] and new_features[9]!=0:
+            events.append(TOWARDS_DANGEROUS_PLACE)
         
         R=reward_from_events(self,events)
             
         #hyperparameter for training algorithm  
         #TODO Find good hyperparameter (Sutton 9.6) @Simon 
-        gamma=0.9
-        alpha=0.01
+        gamma=1
+        alpha=0.001
         
         w=self.model
         
@@ -138,7 +141,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         # If we define R+gamma*g_hat(S',A',w):=Y (as seen in lecture 3, p.2) we want to minimize the squared Error (Y-Xw)^2=(Y-q_hat)^2
         # We want to find a w that the squared error is minimal:
         # We take gradient of (Y-q_hat)^2 with respect to w and get a direction in which we have to correct our w (like in every Newton-method)
-        
+        self.logger.info(f"Gradient: {grad_q_hat(self,S,A,w)}")
+        self.logger.info(f"difference: {gamma*q_hat(self,S_prime,A_prime,w)-q_hat(self,S,A,w)}")
         
         ####Iteration
         w=w+alpha*(R+gamma*q_hat(self,S_prime,A_prime,w)-q_hat(self,S,A,w))*grad_q_hat(self,S,A,w)
@@ -191,26 +195,27 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 10,
+        e.COIN_COLLECTED: 5,
         #e.KILLED_OPPONENT: 5,
         e.MOVED_DOWN: -.1,
         e.MOVED_LEFT: -.1,
         e.MOVED_RIGHT: -.1,
         e.MOVED_UP: -.1,
         e.WAITED: -.1,
-        e.INVALID_ACTION: -1,
+        e.INVALID_ACTION: -0.1,
         e.KILLED_SELF: -9,
-        e.GOT_KILLED: -0.5,
-        e.CRATE_DESTROYED: 0.2,
-        e.COIN_FOUND: 5,
+        e.GOT_KILLED: -10,
+        #e.CRATE_DESTROYED: 0.2,
+        e.COIN_FOUND: 3,
         e.BOMB_DROPPED: 0.5,
         e.BOMB_EXPLODED: 0.0,
         GETTING_CLOSER: 0.5,
         LOOSING_COIN: -0.2,
         WELL_PLACED_BOMB: 0.5,
-        BAD_PLACED_BOMB: -.1,
-        TOWARDS_SAFE_PLACE: 3,
+        BAD_PLACED_BOMB: -.6,
+        TOWARDS_SAFE_PLACE: 0.2,
         EARLY_SUICID: -5,
+        TOWARDS_DANGEROUS_PLACE: -1,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad
     }
     reward_sum = 0
