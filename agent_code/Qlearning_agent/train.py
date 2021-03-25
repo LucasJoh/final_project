@@ -12,8 +12,8 @@ Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
 # Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 1  # keep only ... last transitions
-RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
+TRANSITION_HISTORY_SIZE = 20  # keep only ... last transitions
+RECORD_ENEMY_TRANSITIONS = 0  # record enemy transitions with probability ...
 
 # Events
 PLACEHOLDER_EVENT = "PLACEHOLDER"
@@ -104,9 +104,13 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
         if old_features[9]<new_features[9] and old_features[9]!=0:
             events.append(TOWARDS_SAFE_PLACE)
+
+        for i in range(3):
+            if old_features[11+i]<new_features[11+i]:
+                events.append(GETTING_CLOSER)
         
-        if old_features[9]>new_features[9] and new_features[9]!=0:
-            events.append(TOWARDS_DANGEROUS_PLACE)
+        #if old_features[9]>new_features[9] and new_features[9]!=0:
+        #    events.append(TOWARDS_DANGEROUS_PLACE)
         
         R=reward_from_events(self,events)
             
@@ -145,9 +149,21 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         self.logger.info(f"difference: {gamma*q_hat(self,S_prime,A_prime,w)-q_hat(self,S,A,w)}")
         
         ####Iteration
-        w=w+alpha*(R+gamma*q_hat(self,S_prime,A_prime,w)-q_hat(self,S,A,w))*grad_q_hat(self,S,A,w)
+        #w=w+alpha*(R+gamma*q_hat(self,S_prime,A_prime,w)-q_hat(self,S,A,w))*grad_q_hat(self,S,A,w)
 
-        self.model=w
+        ###n-step Q-learning
+        n=5
+        self.transitions.append(Transition(old_features, self_action, new_features, R))
+        if len(self.transitions)==n:
+            Reward=0
+            for transition in self.transitions:
+                Reward+=gamma*transition[3]
+            self.transitions.clear()
+            w=w+alpha*(Reward+gamma*q_hat(self,S_prime,A_prime,w)-q_hat(self,S,A,w))*grad_q_hat(self,S,A,w)
+            ###Monte-Carlo
+            #w=w+alpha*(Reward-q_hat(self,S,A,w))*grad_q_hat(self,S,A,w)
+            self.model=w
+            #print(w)
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
     """
@@ -175,9 +191,17 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     alpha=0.001
 
     w=self.model
+
+    Reward=0
+    for transition in self.transitions:
+        Reward+=gamma*transition[3]
+
     
-    ####Iteration
-    w=w+alpha*(reward_from_events(self,events)-gamma*q_hat(self,S,A,w)-q_hat(self,S,A,w))*grad_q_hat(self,S,A,w)
+    ####n-step Qlearning
+    w=w+alpha*(Reward+gamma*q_hat(self,S,A,w)-q_hat(self,S,A,w))*grad_q_hat(self,S,A,w)
+
+    ###Monte-Carlo
+    #w=w+alpha*(Reward-q_hat(self,S,A,w))*grad_q_hat(self,S,A,w)
 
     self.model=w
     print(w)
@@ -195,7 +219,7 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 5,
+        e.COIN_COLLECTED: 10,
         #e.KILLED_OPPONENT: 5,
         e.MOVED_DOWN: -.1,
         e.MOVED_LEFT: -.1,
@@ -203,17 +227,17 @@ def reward_from_events(self, events: List[str]) -> int:
         e.MOVED_UP: -.1,
         e.WAITED: -.1,
         e.INVALID_ACTION: -0.1,
-        e.KILLED_SELF: -9,
-        e.GOT_KILLED: -10,
-        #e.CRATE_DESTROYED: 0.2,
+        e.KILLED_SELF: -6,
+        e.GOT_KILLED: -5,
+        e.CRATE_DESTROYED: 0.4,
         e.COIN_FOUND: 3,
         e.BOMB_DROPPED: 0.5,
         e.BOMB_EXPLODED: 0.0,
         GETTING_CLOSER: 0.5,
         LOOSING_COIN: -0.2,
-        WELL_PLACED_BOMB: 0.5,
+        WELL_PLACED_BOMB: 2,
         BAD_PLACED_BOMB: -.6,
-        TOWARDS_SAFE_PLACE: 0.2,
+        TOWARDS_SAFE_PLACE: 0.6,
         EARLY_SUICID: -5,
         TOWARDS_DANGEROUS_PLACE: -1,
         PLACEHOLDER_EVENT: -.1  # idea: the custom event is bad

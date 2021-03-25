@@ -32,7 +32,7 @@ def setup(self):
         #self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.005,0.0025, 0.05525])
         #self.model = np.full(15,0.1)
         #quickstart after training with no crates
-        self.model = np.array([5.09,4.4598,2.7454,2.9469,2.3599,1.7345,0.8671,1.2299,1.871,1.0779,0.1,0.1,0.1,0.1, 0.1])
+        self.model = np.array([5.09,4.4598,2.7454,2.9469,2.3599,1.7345,0.8671,1.2299,1.871,1.0779,0.1,0.1,0.1,0.1,0.1,0.1,0.1, 0.1])
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -72,7 +72,7 @@ def q_hat(self,S,A,w):
             S_temp['self']=(p[0],p[1],p[2],(p[3][0]-1,p[3][1]))
     if A=='BOMB':
         if p[2]==True:#test if bombing is possible
-            S_temp['bombs'].append((p[3],4))
+            S_temp['bombs'].append((p[3],4)) #4 shows that it is virtual
             S_temp['self']=(p[0],p[1],False,p[3]) ##avoid bug, that after dropping a bomb the agent is able to drop another
     
     X=state_to_features(self, S_temp)
@@ -530,7 +530,7 @@ def state_to_features(self, game_state: dict) -> np.array:
     #self.logger.debug(f"Looking for safe spaces!")
     field = np.copy(game_state['field'])
 
-    closest_spot = 200
+    closest_spot = None
 
     #max 4*13=52 iterations, probably won't take to long
     
@@ -538,7 +538,7 @@ def state_to_features(self, game_state: dict) -> np.array:
 
         #determine all spaces that are currently threatend by a bomb and insert entry 2 in our copy
         for bomb in game_state['bombs']:
-            if bomb != (player,4): #don't min virtual bombs
+            if bomb != (player,4): #don't mind virtual bombs
                 if bomb[1]<=4:
                     bomb_range = in_range(bomb[0], game_state['field'] == 0)
                     for s in bomb_range:
@@ -595,6 +595,8 @@ def state_to_features(self, game_state: dict) -> np.array:
         #closest_spot = np.min(free_s_distances) #part of upspeeding
     
     if closest_spot==0:
+        inverted_closest_spot=2
+    elif closest_spot==None:
         inverted_closest_spot=2
     else:
         inverted_closest_spot=1/closest_spot
@@ -682,12 +684,14 @@ def state_to_features(self, game_state: dict) -> np.array:
                 inverted_minimal_crate_distance = 1/minimal_crate_distance
 
             features.append(inverted_minimal_crate_distance)
+            features.append(1/np.min(diff))
                 
             diff = np.delete(diff, minimal_index, 0)
             crate_indices = np.delete(crate_indices, minimal_index, 0)
             
         else:
-            features.append(0)                                  
+            features.append(0)  
+            features.append(0)                                
     
     ###Feature 5: Count threatened opponents by a dropped bomb
     opponents = game_state['others']
