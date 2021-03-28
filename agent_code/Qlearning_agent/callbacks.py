@@ -32,8 +32,7 @@ def setup(self):
         #self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.005,0.0025, 0.05525])
         #self.model = np.full(15,0.1)
         #quickstart after training with no crates
-        self.model = np.array([5.09,4.4598,2.7454,2.9469,2.3599,1.7345,0.8671,1.2299,1.871,1.0779,0.1,0.1,0.1,0.1, 0.1])
-        #self.model = np.array([5.09,4.4598,2.7454,2.9469,2.3599,1.7345,0.8671,1.2299,1.871,1.0779,0.5,0.05,0.045,0.02,0.04,0.01,0.02, 0.95])
+        self.model = np.array([5.09,4.4598,2.7454,2.9469,2.3599,1.7345,0.8671,1.2299,1.871,1.0779,0.1,0.1,0.1,0.1,0.1,0.1,0.1, 0.1])
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -53,7 +52,7 @@ def q_hat(self,S,A,w):
     :return: float
     """
     
-    self.logger.debug(f"CHECKING ACTION {A}")
+    #self.logger.debug(f"CHECKING ACTION {A}")
     S_temp=copy.deepcopy(S) ###avoid bug caused by shallow-copy (.copy())
     p = S_temp['self']
     f = S_temp['field']
@@ -82,7 +81,7 @@ def q_hat(self,S,A,w):
     # self.logger.debug(f"w:,{w}")
     #print("X:",A,X)
     #print("w:",w)
-    self.logger.debug(f"X: {X}")
+    #self.logger.debug(f"X: {X}")
     assert len(w)==len(X)
     return w@X
 
@@ -686,14 +685,14 @@ def state_to_features(self, game_state: dict) -> np.array:
                 inverted_minimal_crate_distance = 1/minimal_crate_distance
 
             features.append(inverted_minimal_crate_distance)
-            #features.append(1/np.min(diff))
+            features.append(1/np.min(diff))
                 
             diff = np.delete(diff, minimal_index, 0)
             crate_indices = np.delete(crate_indices, minimal_index, 0)
             
         else:
             features.append(0)  
-            #features.append(0)                                
+            features.append(0)                                
     
     ###Feature 5: Count threatened opponents by a dropped bomb
     opponents = game_state['others']
