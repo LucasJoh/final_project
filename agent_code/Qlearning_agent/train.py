@@ -117,7 +117,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         #hyperparameter for training algorithm  
         #TODO Find good hyperparameter (Sutton 9.6) @Simon 
         gamma=1
-        alpha=0.001
+        alpha=0.0001
         
         w=self.model
         
@@ -188,7 +188,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     #hyperparameter   
     gamma=0.9
-    alpha=0.001
+    alpha=0.0001
 
     w=self.model
 
@@ -233,7 +233,7 @@ def reward_from_events(self, events: List[str]) -> int:
         e.COIN_FOUND: 3,
         e.BOMB_DROPPED: 0.5,
         e.BOMB_EXPLODED: 0.0,
-        GETTING_CLOSER: 0.5,
+        GETTING_CLOSER: 0.1,
         LOOSING_COIN: -0.2,
         WELL_PLACED_BOMB: 2,
         BAD_PLACED_BOMB: -.6,

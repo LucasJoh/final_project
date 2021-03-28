@@ -32,7 +32,8 @@ def setup(self):
         #self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.005,0.0025, 0.05525])
         #self.model = np.full(15,0.1)
         #quickstart after training with no crates
-        self.model = np.array([5.09,4.4598,2.7454,2.9469,2.3599,1.7345,0.8671,1.2299,1.871,1.0779,0.1,0.1,0.1,0.1,0.1,0.1,0.1, 0.1])
+        self.model = np.array([5.09,4.4598,2.7454,2.9469,2.3599,1.7345,0.8671,1.2299,1.871,1.0779,0.1,0.1,0.1,0.1, 0.1,0.1,0.1,0.1,0.1])
+        #self.model = np.array([5.09,4.4598,2.7454,2.9469,2.3599,1.7345,0.8671,1.2299,1.871,1.0779,0.5,0.05,0.045,0.02,0.04,0.01,0.02, 0.95])
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -77,11 +78,12 @@ def q_hat(self,S,A,w):
     
     X=state_to_features(self, S_temp)
     
-    # self.logger.debug(f"X:,{A},{X}")
+    #self.logger.debug(f"X:,{A},{X}")
     # self.logger.debug(f"w:,{w}")
     #print("X:",A,X)
     #print("w:",w)
     #self.logger.debug(f"X: {X}")
+    #print(len(w),len(X))
     assert len(w)==len(X)
     return w@X
 
@@ -117,7 +119,8 @@ def act(self, game_state: dict) -> str:
     # print("A",np.array([q_hat(self,S,a,w) for a in ACTIONS]))
     # print("w", w)
     # print(greedy)
-    self.logger.debug(f"DOING ACTION: {greedy}")
+    self.logger.debug(f"q for all actions: {tester}")
+    self.logger.info(f"DOING ACTION: {greedy}")
     #Exploration vs exploitation
     # definie hyperparameter for epsilon-greedy-policy (lecture 2, p.3)
     epsilon = 0.05
@@ -684,14 +687,14 @@ def state_to_features(self, game_state: dict) -> np.array:
                 inverted_minimal_crate_distance = 1/minimal_crate_distance
 
             features.append(inverted_minimal_crate_distance)
-            features.append(1/np.min(diff))
+            #features.append(1/np.min(diff))
                 
             diff = np.delete(diff, minimal_index, 0)
             crate_indices = np.delete(crate_indices, minimal_index, 0)
             
         else:
             features.append(0)  
-            features.append(0)                                
+            #features.append(0)                                
     
     ###Feature 5: Count threatened opponents by a dropped bomb
     opponents = game_state['others']
@@ -713,6 +716,23 @@ def state_to_features(self, game_state: dict) -> np.array:
 
     features.append(inverted_reachable_opponents)
 
+    ###Feature 6: Distance to opponents
+
+    enemys = np.zeros((4,2))
+    for i in range(len(opponents)):
+        enemys[i] = opponents[i][3]
+
+    for opponent in enemys:
+        if opponent[0]!=0:
+            distance_to_opponent = np.linalg.norm(player-opponent)
+        else:
+            distance_to_opponent = 200
+
+        if distance_to_opponent == 0:
+            inverted_distance_to_opponent = 2
+        else:
+            inverted_distance_to_opponent = 1/distance_to_opponent
+        features.append(inverted_distance_to_opponent)
 
      #I kept this distinction between features and channels if a feature augmentation would be neccessary at some point (Sutton, 9.5)
     for feature in features:
