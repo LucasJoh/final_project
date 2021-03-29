@@ -30,9 +30,9 @@ def setup(self):
         weights = np.random.rand(10)
         #self.model = np.concatenate((np.full(11,0.1),np.full(5,0.01)))
         #self.model = np.array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.2,0.05,0.01,0.005,0.0025, 0.05525])
-        #self.model = np.full(15,0.1)
+        self.model = np.full(19,0.1)
         #quickstart after training with no crates
-        self.model = np.array([5.09,4.4598,2.7454,2.9469,2.3599,1.7345,0.8671,1.2299,1.871,1.0779,0.1,0.1,0.1,0.1, 0.1,0.1,0.1,0.1,0.1])
+        #self.model = np.array([5.09,4.4598,2.7454,2.9469,2.3599,1.7345,0.8671,1.2299,1.871,1.0779,0.1,0.1,0.1,0.1, 0.1,0.1,0.1,0.1,0.1])
         #self.model = np.array([5.09,4.4598,2.7454,2.9469,2.3599,1.7345,0.8671,1.2299,1.871,1.0779,0.5,0.05,0.045,0.02,0.04,0.01,0.02, 0.95])
     else:
         self.logger.info("Loading model from saved state.")
@@ -123,7 +123,7 @@ def act(self, game_state: dict) -> str:
     self.logger.info(f"DOING ACTION: {greedy}")
     #Exploration vs exploitation
     # definie hyperparameter for epsilon-greedy-policy (lecture 2, p.3)
-    epsilon = 0.05
+    epsilon = 0.01
     
     if self.train:
         #in training-mode use epsilon-greedy-policy
