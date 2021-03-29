@@ -9,10 +9,11 @@
 - [x] delete bugs in in_range (Laurin)
 - [x] fix bug with missing distances for crates 2 and 3
 - [x] fix bug with missing entry in safe-space-map of other players
-- [ ] think of good 1v1 features (Laurin,Lucas)
-- [ ] find best algorithm to learn (Simon)
-- [ ] find a good way to handle learning hyperparameter (Simon)
-- [ ] add helpful events
-- [ ] add new features concerning 1v1 against other agents
-- [ ] find bugs in existing code
-- [ ] check latex-templete in Heibox and start writing your part
+- [x] think of good 1v1 features (Laurin,Lucas)
+- [x] find best algorithm to learn (Simon)
+- [x] find a good way to handle learning hyperparameter (Simon)
+- [x] add helpful events
+- [x] add new features concerning 1v1 against other agents
+- [x] find bugs in existing code
+- [x] check latex-templete in Heibox and start writing your part
+- [ ] Party till you die!
